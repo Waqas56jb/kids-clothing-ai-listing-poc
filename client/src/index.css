@@ -1,70 +1,92 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Manrope", "Inter", ui-sans-serif, sans-serif;
-  --font-sans: "Inter", ui-sans-serif, sans-serif;
+  --font-display: "Fraunces", "Times New Roman", ui-serif, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
 
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-200: #b8d0ff;
+  --color-brand-300: #86b0ff;
+  --color-brand-400: #4d86f7;
+  --color-brand-500: #2563eb;
+  --color-brand-600: #1d4fc7;
+  --color-brand-700: #1a3fa3;
+  --color-brand-800: #1b357f;
+  --color-brand-900: #162a5c;
 
-  --color-surface: #f6f8fc;
+  --color-ink: #14181f;
+  --color-sand: #f3efe6;
+  --color-gold: #b0892e;
+  --color-surface: #f4f0e8;
 
-  --shadow-soft: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-elevated: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 12px 32px -8px rgb(37 99 235 / 0.12);
+  --shadow-soft: 0 1px 2px rgb(20 24 31 / 0.04), 0 8px 24px rgb(20 24 31 / 0.05);
+  --shadow-elevated: 0 12px 40px -12px rgb(20 24 31 / 0.18), 0 4px 14px rgb(29 79 199 / 0.08);
 }
 
 html {
   font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
 }
 
 body {
+  color: var(--color-ink);
   background:
-    radial-gradient(1200px 600px at 100% -10%, color-mix(in srgb, var(--color-brand-100) 55%, transparent), transparent),
-    radial-gradient(900px 500px at -10% 10%, color-mix(in srgb, var(--color-brand-50) 70%, transparent), transparent),
+    radial-gradient(900px 420px at 110% -10%, color-mix(in srgb, var(--color-brand-200) 35%, transparent), transparent),
+    radial-gradient(700px 380px at -15% 0%, color-mix(in srgb, #e8d5b5 45%, transparent), transparent),
     var(--color-surface);
-  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
-.shadow-soft {
-  box-shadow: var(--shadow-soft);
+h1, h2, h3, .font-display {
+  letter-spacing: -0.03em;
 }
-.shadow-elevated {
-  box-shadow: var(--shadow-elevated);
+
+.shadow-soft { box-shadow: var(--shadow-soft); }
+.shadow-elevated { box-shadow: var(--shadow-elevated); }
+
+.bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
 }
 
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+  50% { opacity: 0.5; }
 }
-.animate-pulse-soft {
-  animation: pulse-soft 1.6s ease-in-out infinite;
-}
+.animate-pulse-soft { animation: pulse-soft 1.6s ease-in-out infinite; }
 
 @keyframes shimmer {
   100% { transform: translateX(100%); }
 }
-.animate-shimmer {
-  animation: shimmer 1.6s ease-in-out infinite;
-}
+.animate-shimmer { animation: shimmer 1.6s ease-in-out infinite; }
 
-/* Thin, unobtrusive scrollbar for admin tables/sidebars */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float { animation: float-slow 6s ease-in-out infinite; }
+
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-brand-200) transparent;
 }
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background-color: var(--color-brand-200);
   border-radius: 9999px;
+}
+
+.safe-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+.safe-top { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+.touch-hit {
+  min-height: 44px;
+  min-width: 44px;
 }

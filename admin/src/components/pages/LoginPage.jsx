@@ -69,7 +69,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="mt-8 font-display text-2xl font-bold text-slate-800 sm:text-3xl">Sign in to review work</h1>
+          <h1 className="mt-8 font-display text-3xl font-semibold text-ink sm:text-4xl">Sign in to review work</h1>
           <p className="mt-2 text-sm text-slate-500">
             Manage projects, detections, pricing, and listings across every seller.
           </p>

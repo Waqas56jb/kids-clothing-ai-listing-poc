@@ -40,14 +40,18 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      whileHover={{ y: -4 }}
     >
       <Link
         to={`/garments/${jobId}/${garment.detection_ids[0]}`}
-        className="flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-black/5 transition-shadow hover:shadow-elevated"
+        className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white/90 shadow-soft ring-1 ring-black/5 transition duration-300 hover:-translate-y-1 hover:shadow-elevated"
       >
-        <div className="relative aspect-square bg-surface">
-          <img src={imageSrc} alt={garment.category} className="h-full w-full object-contain p-4" loading="lazy" />
+        <div className="relative aspect-square overflow-hidden bg-sand">
+          <img
+            src={imageSrc}
+            alt={garment.category}
+            className="h-full w-full object-contain p-4 transition duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
           {garment.images.length > 1 && (
             <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-slate-900/60 px-2 py-0.5 text-[11px] font-medium text-white">
               <ImageIcon className="h-3 w-3" /> {garment.images.length}

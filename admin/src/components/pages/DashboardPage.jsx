@@ -1,13 +1,48 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { AlertTriangle, Camera, FolderKanban, Package, Search, Settings2, Shirt, Tag } from 'lucide-react'
 import { listJobs } from '../../api'
+import { statusSeries, summarizeJobs, timeAgo, trendSeries } from '../../lib/jobsStats'
 import StatCard from '../ui/StatCard'
 import Card from '../ui/Card'
 import Badge from '../ui/Badge'
 import Skeleton from '../ui/Skeleton'
+import Loader from '../ui/Loader'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
+
+const tooltipStyle = {
+  borderRadius: 16,
+  border: '1px solid #e8eef8',
+  boxShadow: '0 12px 32px rgb(20 24 31 / 0.08)',
+  fontSize: 12,
+}
+
+function ChartCard({ title, subtitle, children }) {
+  return (
+    <Card className="p-5 sm:p-6">
+      <div className="mb-4">
+        <h2 className="font-display text-xl font-semibold text-ink">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      {children}
+    </Card>
+  )
+}
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState(null)
@@ -18,56 +53,155 @@ export default function DashboardPage() {
       .catch(() => setJobs([]))
   }, [])
 
-  const done = jobs?.filter((j) => j.status === 'done') ?? []
-  const errored = jobs?.filter((j) => j.status === 'error') ?? []
-  const processing = jobs?.filter((j) => j.status === 'processing' || j.status === 'queued') ?? []
-  const totalGarments = done.reduce((sum, j) => sum + (j.garment_count ?? 0), 0)
-  const totalPhotos = jobs?.reduce((sum, j) => sum + (j.image_count ?? 0), 0) ?? 0
+  if (jobs === null) {
+    return (
+      <div>
+        <Skeleton className="h-12 w-64" />
+        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
+        </div>
+        <Loader label="Loading live operations…" />
+      </div>
+    )
+  }
+
+  const { done, errored, processing, totalGarments, totalPhotos } = summarizeJobs(jobs)
+  const trend = trendSeries(jobs)
+  const mix = statusSeries(jobs)
+  const avgGarments = done.length ? Math.round((totalGarments / done.length) * 10) / 10 : 0
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">System Overview</h1>
-      <p className="mt-1 text-sm text-slate-500">Live snapshot of processing across all seller projects.</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">Operations</p>
+      <h1 className="mt-1 font-display text-3xl font-semibold text-ink sm:text-4xl">System overview</h1>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+        Live snapshot of every seller batch — photos in, garments out, and work still in the pipeline.
+      </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total projects" value={jobs?.length ?? '—'} icon={FolderKanban} tone="brand" />
-        <StatCard label="Photos processed" value={totalPhotos} icon={Camera} tone="brand" />
-        <StatCard label="Garments detected" value={totalGarments} icon={Shirt} tone="emerald" />
-        <StatCard label="Currently processing" value={processing.length} icon={Settings2} tone="amber" />
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Projects" value={jobs.length} hint="All seller batches" icon={FolderKanban} tone="brand" />
+        <StatCard label="Photos" value={totalPhotos} hint="Images sent through the model" icon={Camera} tone="brand" />
+        <StatCard label="Garments" value={totalGarments} hint={`${avgGarments || 0} avg per completed batch`} icon={Shirt} tone="emerald" />
+        <StatCard label="In flight" value={processing.length} hint={`${errored.length} failed`} icon={Settings2} tone="amber" />
       </div>
 
       {errored.length > 0 && (
-        <div className="mt-6 flex items-start gap-2.5 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
+        <div className="mt-6 flex items-start gap-2.5 rounded-3xl border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             {errored.length} project{errored.length > 1 ? 's' : ''} failed processing.{' '}
-            <Link to="/jobs" className="font-semibold underline">
-              View jobs monitor →
+            <Link to="/jobs" className="font-semibold underline underline-offset-2">
+              Open jobs monitor
             </Link>
           </span>
         </div>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <ChartCard title="Throughput" subtitle="Photos and garments from real batches, oldest to newest.">
+            <div className="h-64 sm:h-72">
+              {trend.length === 0 ? (
+                <p className="flex h-full items-center justify-center text-sm text-slate-400">No batches yet — charts fill as jobs complete.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gPhotos" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#1d4fc7" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#1d4fc7" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="gGarments" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#059669" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#059669" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#e8eef8" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Area type="monotone" dataKey="photos" name="Photos" stroke="#1d4fc7" fill="url(#gPhotos)" strokeWidth={2.5} />
+                    <Area type="monotone" dataKey="garments" name="Garments" stroke="#059669" fill="url(#gGarments)" strokeWidth={2.5} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </ChartCard>
+        </div>
+
+        <ChartCard title="Pipeline mix" subtitle="Share of batches by live status.">
+          <div className="h-64 sm:h-72">
+            {mix.length === 0 ? (
+              <p className="flex h-full items-center justify-center text-sm text-slate-400">Waiting for the first job.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={mix} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={4} stroke="none">
+                    {mix.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <ul className="mt-1 flex flex-wrap gap-3 text-xs font-medium text-slate-500">
+            {mix.map((item) => (
+              <li key={item.name} className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: item.fill }} />
+                {item.name} · {item.value}
+              </li>
+            ))}
+          </ul>
+        </ChartCard>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <ChartCard title="Batch comparison" subtitle="Photos uploaded vs garments found on recent jobs.">
+          <div className="h-60">
+            {trend.length === 0 ? (
+              <p className="flex h-full items-center justify-center text-sm text-slate-400">No comparison data yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid stroke="#e8eef8" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar dataKey="photos" name="Photos" fill="#86b0ff" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="garments" name="Garments" fill="#1d4fc7" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </ChartCard>
+
         <div>
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-slate-800">Recent projects</h2>
-            <Link to="/projects" className="text-sm font-semibold text-brand-600 hover:underline">
-              View all →
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-ink">Recent projects</h2>
+              <p className="mt-1 text-sm text-slate-500">Newest seller batches first.</p>
+            </div>
+            <Link to="/projects" className="text-sm font-semibold text-brand-700 hover:underline">
+              View all
             </Link>
           </div>
-          <div className="mt-3 space-y-2">
-            {jobs === null ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
-            ) : jobs.length === 0 ? (
+          <div className="space-y-2">
+            {jobs.length === 0 ? (
               <Card className="p-6 text-center text-sm text-slate-400">No projects yet.</Card>
             ) : (
-              jobs.slice(0, 6).map((job) => (
+              jobs.slice(0, 5).map((job) => (
                 <Link key={job.job_id} to={`/projects/${job.job_id}`}>
-                  <Card hover className="flex items-center justify-between gap-3 p-3.5">
-                    <span className="truncate text-sm font-semibold text-slate-700">
-                      {job.job_id.slice(0, 10)} · {job.image_count} photos
-                    </span>
+                  <Card hover className="mb-2 flex items-center justify-between gap-3 p-3.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {job.job_id.slice(0, 10)} · {job.image_count} photos
+                      </p>
+                      <p className="text-xs text-slate-400">{timeAgo(job.created_at)}</p>
+                    </div>
                     <Badge tone={STATUS_TONE[job.status] ?? 'neutral'}>{job.status}</Badge>
                   </Card>
                 </Link>
@@ -75,26 +209,26 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+      </div>
 
-        <div>
-          <h2 className="font-display text-lg font-bold text-slate-800">Quick links</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {[
-              { to: '/review-queue', label: 'Review Queue', icon: Search },
-              { to: '/jobs', label: 'Jobs Monitor', icon: Settings2 },
-              { to: '/groups', label: 'Groups', icon: Package },
-              { to: '/listings', label: 'Listings', icon: Tag },
-            ].map((link) => (
-              <Link key={link.to} to={link.to}>
-                <Card hover className="flex flex-col items-center gap-2 p-5 text-center">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                    <link.icon className="h-5 w-5" strokeWidth={1.75} />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700">{link.label}</span>
-                </Card>
-              </Link>
-            ))}
-          </div>
+      <div className="mt-8">
+        <h2 className="font-display text-xl font-semibold text-ink">Jump back in</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { to: '/review-queue', label: 'Review queue', icon: Search },
+            { to: '/jobs', label: 'Jobs monitor', icon: Settings2 },
+            { to: '/groups', label: 'Groups', icon: Package },
+            { to: '/listings', label: 'Listings', icon: Tag },
+          ].map((link) => (
+            <Link key={link.to} to={link.to}>
+              <Card hover className="flex flex-col items-center gap-2 p-5 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sand text-brand-700">
+                  <link.icon className="h-5 w-5" strokeWidth={1.75} />
+                </span>
+                <span className="text-sm font-semibold text-ink">{link.label}</span>
+              </Card>
+            </Link>
+          ))}
         </div>
       </div>
     </div>

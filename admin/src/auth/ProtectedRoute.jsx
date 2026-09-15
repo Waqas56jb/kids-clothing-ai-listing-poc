@@ -5,11 +5,11 @@ import { useAuth } from './AuthContext'
 
 export function AuthSplash() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-brand-900 px-4">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-white shadow-elevated">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-brand-900 px-4">
+      <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 text-white shadow-elevated">
         <ShieldCheck className="h-7 w-7 animate-pulse-soft" />
       </span>
-      <p className="font-display text-lg font-bold text-white">Admin Console</p>
+      <p className="font-display text-2xl font-semibold text-white">Admin console</p>
       <p className="text-sm text-brand-200">Checking your access…</p>
     </div>
   )

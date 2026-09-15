@@ -68,8 +68,8 @@ export default function LoginPage() {
               <p className="text-xs text-brand-100">Seller workspace</p>
             </div>
           </div>
-          <h1 className="mt-8 max-w-md font-display text-3xl font-extrabold leading-tight sm:text-4xl lg:mt-16">
-            Turn a pile of kids’ clothes into listings, automatically.
+          <h1 className="mt-8 max-w-md font-display text-4xl font-semibold leading-[1.15] sm:text-5xl lg:mt-16">
+            From a pile of clothes to a polished listing.
           </h1>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-brand-100 sm:text-base">
             Sign in to upload photos, watch the AI pipeline, and review garments before they go live.
@@ -100,7 +100,7 @@ export default function LoginPage() {
             <p className="text-sm font-semibold text-slate-600">Seller sign in</p>
           </div>
 
-          <h2 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">
+          <h2 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
             {mode === 'login' ? 'Welcome back' : 'Create your seller account'}
           </h2>
           <p className="mt-1.5 text-sm text-slate-500">

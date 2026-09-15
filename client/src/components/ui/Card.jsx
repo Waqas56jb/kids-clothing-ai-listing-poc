@@ -1,8 +1,10 @@
 export default function Card({ className = '', hover = false, as: As = 'div', children, ...props }) {
   return (
     <As
-      className={`rounded-2xl border border-slate-100 bg-white shadow-soft ${
-        hover ? 'transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated' : ''
+      className={`rounded-3xl border border-white/80 bg-white/90 shadow-soft backdrop-blur-sm ${
+        hover
+          ? 'transition duration-300 ease-out hover:-translate-y-1 hover:border-brand-100 hover:shadow-elevated'
+          : ''
       } ${className}`}
       {...props}
     >
