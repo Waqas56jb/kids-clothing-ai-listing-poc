@@ -19,7 +19,7 @@ npm run dev
 ```
 
 Opens on `http://localhost:5173`. The dev server proxies `/api` and
-`/files` to the backend at `http://127.0.0.1:8000` (see `vite.config.js`) —
+`/files` to the backend at `http://127.0.0.1:8001` (see `vite.config.js`) —
 start the backend first.
 
 ## Linking to the admin app

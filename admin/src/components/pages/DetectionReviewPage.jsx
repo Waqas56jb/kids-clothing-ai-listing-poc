@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
-import { fileUrl, getJob } from '../../api'
+import { toast } from 'react-toastify'
+import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
+import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
 
@@ -16,10 +18,15 @@ function confidenceTone(value) {
 export default function DetectionReviewPage() {
   const { jobId, detectionId } = useParams()
   const [job, setJob] = useState(null)
+  const [form, setForm] = useState(null)
 
   useEffect(() => {
-    getJob(jobId).then(setJob)
-  }, [jobId])
+    getJob(jobId).then((data) => {
+      setJob(data)
+      const found = data.result?.garments.find((g) => g.detection_ids.includes(detectionId))
+      if (found) setForm({ ...found })
+    })
+  }, [jobId, detectionId])
 
   if (!job) {
     return (
@@ -32,6 +39,14 @@ export default function DetectionReviewPage() {
 
   const garment = job.result?.garments.find((g) => g.detection_ids.includes(detectionId))
   if (!garment) return <p className="text-sm text-slate-500">Detection not found.</p>
+  if (!form) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-80 w-full" />
+      </div>
+    )
+  }
 
   const fields = ['category', 'brand', 'size', 'color', 'condition', 'gender']
 
@@ -84,7 +99,13 @@ export default function DetectionReviewPage() {
                 {fields.map((field) => (
                   <Tr key={field}>
                     <Td className="capitalize font-medium text-slate-500">{field}</Td>
-                    <Td className="capitalize">{garment[field] ?? <span className="text-slate-300">—</span>}</Td>
+                    <Td className="capitalize">
+                      <input
+                        value={form[field] ?? ''}
+                        onChange={(event) => setForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                      />
+                    </Td>
                     <Td>
                       <Badge tone={confidenceTone(garment.confidence?.[field] ?? 0)}>
                         {Math.round((garment.confidence?.[field] ?? 0) * 100)}%
@@ -94,6 +115,31 @@ export default function DetectionReviewPage() {
                 ))}
               </tbody>
             </Table>
+          </div>
+          <div className="mt-4">
+            <Button
+              onClick={async () => {
+                try {
+                  await patchWorkspace(jobId, {
+                    garment_edits: {
+                      [garment.id]: {
+                        category: form.category,
+                        brand: form.brand,
+                        size: form.size,
+                        color: form.color,
+                        condition: form.condition,
+                        gender: form.gender,
+                      },
+                    },
+                  })
+                  toast.success('Saved to the database.')
+                } catch (err) {
+                  toast.error(err.message || 'Could not save')
+                }
+              }}
+            >
+              Save changes
+            </Button>
           </div>
 
           <h2 className="mt-6 font-display text-base font-bold text-slate-800">Matching</h2>

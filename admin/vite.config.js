@@ -8,8 +8,8 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
-      '/files': 'http://127.0.0.1:8000',
+      '/api': 'http://127.0.0.1:8001',
+      '/files': 'http://127.0.0.1:8001',
     },
   },
 })

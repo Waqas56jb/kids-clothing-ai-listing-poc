@@ -30,9 +30,23 @@ create table if not exists public.jobs (
   image_count int not null default 0,
   garment_count int,
   result jsonb,
+  workspace jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.jobs add column if not exists workspace jsonb not null default '{}'::jsonb;
+
+create table if not exists public.job_files (
+  id uuid primary key default gen_random_uuid(),
+  job_id text not null references public.jobs (id) on delete cascade,
+  kind text not null check (kind in ('original', 'crop', 'mask', 'artifact')),
+  storage_path text not null unique,
+  content_type text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists job_files_job_id_idx on public.job_files (job_id);
 
 create index if not exists jobs_user_id_idx on public.jobs (user_id);
 create index if not exists jobs_created_at_idx on public.jobs (created_at desc);
@@ -120,8 +134,24 @@ create policy "jobs_update"
 grant usage on schema public to authenticated, anon;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.jobs to authenticated;
+grant select, insert on public.job_files to authenticated;
 grant all on table public.jobs to service_role;
 grant all on table public.profiles to service_role;
+grant all on table public.job_files to service_role;
+
+alter table public.job_files enable row level security;
+
+drop policy if exists "job_files_select" on public.job_files;
+create policy "job_files_select"
+  on public.job_files for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.jobs
+      where jobs.id = job_files.job_id
+        and (jobs.user_id = auth.uid() or public.current_user_role() = 'admin')
+    )
+  );
 
 -- Backend saves jobs as the signed-in user. SECURITY DEFINER so a row is
 -- actually written even when table RLS would drop a service-key insert.

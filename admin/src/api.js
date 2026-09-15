@@ -57,3 +57,58 @@ export async function listJobs() {
 export function fileUrl(jobId, relativePath) {
   return `${API_BASE}/files/${jobId}/${relativePath}`
 }
+
+export async function patchWorkspace(jobId, patch) {
+  const res = await fetch(`${API_BASE}/api/jobs/${jobId}/workspace`, {
+    method: 'PATCH',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  return parse(res, 'Failed to save')
+}
+
+export async function getJobPricing(jobId) {
+  const res = await fetch(`${API_BASE}/api/jobs/${jobId}/pricing`, { headers: await authHeaders() })
+  return parse(res, 'Failed to fetch pricing')
+}
+
+export async function listPricing() {
+  const res = await fetch(`${API_BASE}/api/pricing`, { headers: await authHeaders() })
+  return parse(res, 'Failed to fetch pricing')
+}
+
+function pricingPath(pricingId, suffix = '') {
+  return `${API_BASE}/api/pricing/${encodeURIComponent(pricingId)}${suffix}`
+}
+
+export async function approvePricingApi(pricingId, body = {}) {
+  const res = await fetch(pricingPath(pricingId, '/approve'), {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return parse(res, 'Failed to approve price')
+}
+
+export async function rejectPricingApi(pricingId, body = {}) {
+  const res = await fetch(pricingPath(pricingId, '/reject'), {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return parse(res, 'Failed to reject price')
+}
+
+export async function updatePricingApi(pricingId, body = {}) {
+  const res = await fetch(pricingPath(pricingId), {
+    method: 'PATCH',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return parse(res, 'Failed to update price')
+}
+
+export async function getPricingHistoryApi(pricingId) {
+  const res = await fetch(pricingPath(pricingId, '/history'), { headers: await authHeaders() })
+  return parse(res, 'Failed to fetch pricing history')
+}

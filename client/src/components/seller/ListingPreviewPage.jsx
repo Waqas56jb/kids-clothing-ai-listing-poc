@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, RotateCcw, Tag } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob } from '../../api'
+import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { generateDescription, generateTitle } from '../../lib/listing'
 import { getGarmentPricing, PRICING_STATUS } from '../../lib/pricing'
 import Badge from '../ui/Badge'
@@ -12,10 +12,10 @@ import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 import PricingStatusBadge from '../pricing/PricingStatus'
 
-function ListingCard({ jobId, garment, index }) {
-  const [title, setTitle] = useState(() => generateTitle(garment))
-  const [description, setDescription] = useState(() => generateDescription(garment))
-  const [approved, setApproved] = useState(false)
+function ListingCard({ jobId, garment, index, listing }) {
+  const [title, setTitle] = useState(() => listing?.title || generateTitle(garment))
+  const [description, setDescription] = useState(() => listing?.description || generateDescription(garment))
+  const [approved, setApproved] = useState(listing?.status === 'approved')
   const [pricing, setPricing] = useState(null)
 
   useEffect(() => {
@@ -29,6 +29,19 @@ function ListingCard({ jobId, garment, index }) {
   }, [jobId, garment])
 
   const isFinal = pricing?.status === PRICING_STATUS.APPROVED || pricing?.status === PRICING_STATUS.MANUALLY_ADJUSTED
+
+  async function saveListing(next = {}) {
+    const payload = {
+      title: next.title ?? title,
+      description: next.description ?? description,
+      status: next.status ?? (approved ? 'approved' : 'draft'),
+    }
+    try {
+      await patchWorkspace(jobId, { listings: { [garment.id]: payload } })
+    } catch (err) {
+      toast.error(err.message || 'Could not save listing')
+    }
+  }
 
   return (
     <motion.div
@@ -51,6 +64,7 @@ function ListingCard({ jobId, garment, index }) {
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            onBlur={() => saveListing()}
             className="w-full rounded-lg border border-transparent bg-transparent font-display text-base font-bold text-slate-800 outline-none transition focus:border-slate-200 focus:bg-slate-50 focus:px-2 focus:py-1"
           />
           {approved ? <Badge tone="good">Approved</Badge> : <Badge tone="neutral">Draft</Badge>}
@@ -58,6 +72,7 @@ function ListingCard({ jobId, garment, index }) {
         <textarea
           value={description}
           onChange={(event) => setDescription(event.target.value)}
+          onBlur={() => saveListing()}
           rows={4}
           className="w-full resize-none rounded-xl border border-slate-200 bg-surface/50 p-3 text-sm text-slate-600 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100"
         />
@@ -81,9 +96,10 @@ function ListingCard({ jobId, garment, index }) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => {
+            onClick={async () => {
               setApproved(true)
-              toast.success('Listing approved for publishing.')
+              await saveListing({ status: 'approved' })
+              toast.success('Listing approved and saved.')
             }}
           >
             Approve listing
@@ -91,10 +107,13 @@ function ListingCard({ jobId, garment, index }) {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => {
-              setTitle(generateTitle(garment))
-              setDescription(generateDescription(garment))
+            onClick={async () => {
+              const nextTitle = generateTitle(garment)
+              const nextDescription = generateDescription(garment)
+              setTitle(nextTitle)
+              setDescription(nextDescription)
               setApproved(false)
+              await saveListing({ title: nextTitle, description: nextDescription, status: 'draft' })
             }}
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset
@@ -108,9 +127,13 @@ function ListingCard({ jobId, garment, index }) {
 export default function ListingPreviewPage() {
   const { jobId } = useParams()
   const [garments, setGarments] = useState(null)
+  const [listings, setListings] = useState({})
 
   useEffect(() => {
-    getJob(jobId).then((data) => setGarments(data.result?.garments ?? []))
+    getJob(jobId).then((data) => {
+      setGarments(data.result?.garments ?? [])
+      setListings(data.workspace?.listings ?? {})
+    })
   }, [jobId])
 
   if (garments === null) {
@@ -129,11 +152,9 @@ export default function ListingPreviewPage() {
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Listing Preview</h1>
-        <Badge tone="info">Preview</Badge>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Draft listing copy templated from AI-extracted attributes only — nothing invented. Edit freely, then
-        approve. Real AI-generated copy and publishing land with backend integration.
+        Draft listing copy from detected attributes. Edits and approvals are saved for admin review.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -141,7 +162,7 @@ export default function ListingPreviewPage() {
           <EmptyState icon={Tag} title="Nothing to list" description="No garments were detected in this batch." />
         ) : (
           garments.map((garment, index) => (
-            <ListingCard key={garment.id} jobId={jobId} garment={garment} index={index} />
+            <ListingCard key={garment.id} jobId={jobId} garment={garment} index={index} listing={listings[garment.id]} />
           ))
         )}
       </div>

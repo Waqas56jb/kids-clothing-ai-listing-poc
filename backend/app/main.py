@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import mimetypes
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Any
+from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 
-from app import db, jobs
+from app import blobstore, db, jobs, workspace as workspace_mod
 from app.auth import require_user
 
 
@@ -19,8 +21,6 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Kids Clothing AI Listing API", lifespan=lifespan)
 
-# Browser apps on Railway + local Vite. Authorization is a custom header so
-# preflight must succeed from those origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -40,11 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-jobs.OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-# Serves debug crops/masks so the client can render them directly, e.g.
-# /files/{job_id}/debug/masks/{detection_id}_masked.png
-app.mount("/files", StaticFiles(directory=str(jobs.OUTPUT_ROOT)), name="files")
-
 
 def _health() -> dict:
     database = db.ping()
@@ -63,6 +58,20 @@ async def health():
 @app.get("/api/health")
 async def api_health():
     return _health()
+
+
+@app.get("/files/{job_id}/{file_path:path}")
+async def serve_file(job_id: str, file_path: str):
+    storage_path = f"{job_id}/{file_path}"
+    try:
+        data, mime = blobstore.download_bytes(storage_path)
+        return Response(content=data, media_type=mime)
+    except RuntimeError:
+        local = jobs.OUTPUT_ROOT / job_id / file_path
+        if local.is_file():
+            mime = mimetypes.guess_type(str(local))[0] or "application/octet-stream"
+            return Response(content=local.read_bytes(), media_type=mime)
+        raise HTTPException(status_code=404, detail="File not found") from None
 
 
 @app.get("/api/me")
@@ -100,6 +109,25 @@ def _job_summary(job: jobs.Job) -> dict:
     }
 
 
+def _load_job(job_id: str, user: dict) -> jobs.Job:
+    job = jobs.get_job(job_id, access_token=user.get("access_token"))
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if user["role"] != "admin" and job.user_id != user["id"]:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _job_payload(job: jobs.Job) -> dict:
+    result = job.result.model_dump() if job.result else None
+    workspace = job.workspace or db.get_workspace(job.id)
+    return {
+        **_job_summary(job),
+        "result": workspace_mod.apply_to_result(result, workspace),
+        "workspace": workspace,
+    }
+
+
 @app.get("/api/jobs")
 async def list_jobs(user: Annotated[dict, Depends(require_user)]):
     is_admin = user["role"] == "admin"
@@ -108,12 +136,75 @@ async def list_jobs(user: Annotated[dict, Depends(require_user)]):
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str, user: Annotated[dict, Depends(require_user)]):
-    job = jobs.get_job(job_id, access_token=user.get("access_token"))
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if user["role"] != "admin" and job.user_id != user["id"]:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return {
-        **_job_summary(job),
-        "result": job.result.model_dump() if job.result else None,
-    }
+    return _job_payload(_load_job(job_id, user))
+
+
+@app.patch("/api/jobs/{job_id}/workspace")
+async def patch_workspace(job_id: str, body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    job = _load_job(job_id, user)
+    replace_keys = [key for key in ("groups",) if key in body]
+    actor_patch = {key: value for key, value in body.items() if key in {"garment_edits", "match_decisions", "groups", "listings"}}
+    if not actor_patch:
+        raise HTTPException(status_code=400, detail="Nothing to save")
+    workspace = db.merge_workspace(job.id, actor_patch, replace_keys=replace_keys)
+    job.workspace = workspace
+    return {"workspace": workspace, "result": _job_payload(job)["result"]}
+
+
+@app.get("/api/jobs/{job_id}/pricing")
+async def job_pricing(job_id: str, user: Annotated[dict, Depends(require_user)]):
+    job = _load_job(job_id, user)
+    workspace = workspace_mod.seed_workspace(job.id, job.result)
+    job.workspace = workspace
+    return list((workspace.get("pricing") or {}).values())
+
+
+@app.get("/api/pricing")
+async def list_pricing(user: Annotated[dict, Depends(require_user)]):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return workspace_mod.list_all_pricing()
+
+
+@app.get("/api/pricing/{pricing_id}/history")
+async def pricing_history(pricing_id: str, user: Annotated[dict, Depends(require_user)]):
+    pricing_id = unquote(pricing_id)
+    job_id = _job_id_from_pricing(pricing_id)
+    job = _load_job(job_id, user)
+    history = (job.workspace or {}).get("pricing_history") or {}
+    return history.get(pricing_id) or []
+
+
+@app.post("/api/pricing/{pricing_id}/approve")
+async def approve_pricing(pricing_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    return _pricing_action(pricing_id, "approve", user, body or {})
+
+
+@app.post("/api/pricing/{pricing_id}/reject")
+async def reject_pricing(pricing_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return _pricing_action(pricing_id, "reject", user, body or {})
+
+
+@app.patch("/api/pricing/{pricing_id}")
+async def update_pricing(pricing_id: str, body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    return _pricing_action(pricing_id, "update", user, body)
+
+
+def _job_id_from_pricing(pricing_id: str) -> str:
+    parts = unquote(pricing_id).split(":")
+    if len(parts) < 3:
+        raise HTTPException(status_code=400, detail="Invalid pricing id")
+    return parts[1]
+
+
+def _pricing_action(pricing_id: str, action: str, user: dict, body: dict[str, Any]) -> dict:
+    pricing_id = unquote(pricing_id)
+    job_id = _job_id_from_pricing(pricing_id)
+    _load_job(job_id, user)
+    actor = user.get("full_name") or user.get("email") or user["role"]
+    try:
+        return workspace_mod.mutate_pricing(job_id, pricing_id, action, actor, body)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Pricing record not found") from None

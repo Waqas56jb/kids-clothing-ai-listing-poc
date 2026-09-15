@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Check, Link2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob } from '../../api'
+import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
@@ -63,7 +63,10 @@ export default function MatchingReviewPage() {
   const [decisions, setDecisions] = useState({})
 
   useEffect(() => {
-    getJob(jobId).then((data) => setGarments(data.result?.garments ?? []))
+    getJob(jobId).then((data) => {
+      setGarments(data.result?.garments ?? [])
+      setDecisions(data.workspace?.match_decisions ?? {})
+    })
   }, [jobId])
 
   if (garments === null) {
@@ -79,11 +82,16 @@ export default function MatchingReviewPage() {
   const matched = garments.filter((g) => g.images.length > 1)
   const singles = garments.filter((g) => g.images.length === 1)
 
-  function decide(garmentId, decision) {
+  async function decide(garmentId, decision) {
     setDecisions((prev) => ({ ...prev, [garmentId]: decision }))
-    toast.success(
-      decision === 'confirmed' ? 'Marked as the same physical item.' : 'Marked as separate items — split noted.',
-    )
+    try {
+      await patchWorkspace(jobId, { match_decisions: { [garmentId]: decision } })
+      toast.success(
+        decision === 'confirmed' ? 'Marked as the same physical item.' : 'Marked as separate items — split noted.',
+      )
+    } catch (err) {
+      toast.error(err.message || 'Could not save match decision')
+    }
   }
 
   return (

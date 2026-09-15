@@ -254,6 +254,69 @@ def set_profile_role(user_id: str, role: str) -> None:
     _request("PATCH", f"/rest/v1/profiles?id=eq.{user_id}", {"role": role}, use_secret=True)
 
 
+def record_job_file(job_id: str, kind: str, storage_path: str) -> None:
+    if postgres_enabled():
+        _pg_execute(
+            """
+            insert into public.job_files (job_id, kind, storage_path)
+            values (%s, %s, %s)
+            on conflict (storage_path) do nothing
+            """,
+            (job_id, kind, storage_path),
+        )
+        return
+    try:
+        _request(
+            "POST",
+            "/rest/v1/job_files",
+            {"job_id": job_id, "kind": kind, "storage_path": storage_path},
+            extra_headers={"Prefer": "resolution=ignore-duplicates,return=minimal"},
+            use_secret=True,
+        )
+    except RuntimeError as exc:
+        print(f"[db] job_files insert: {exc}")
+
+
+def get_workspace(job_id: str) -> dict[str, Any]:
+    if postgres_enabled():
+        row = _pg_execute("select workspace from public.jobs where id = %s", (job_id,), fetch="one")
+        if not row:
+            return {}
+        return dict(row.get("workspace") or {})
+    row = fetch_job(job_id)
+    return dict((row or {}).get("workspace") or {})
+
+
+def set_workspace(job_id: str, workspace: dict[str, Any]) -> dict[str, Any]:
+    from psycopg.types.json import Jsonb
+
+    if postgres_enabled():
+        _pg_execute(
+            "update public.jobs set workspace = %s, updated_at = now() where id = %s",
+            (Jsonb(workspace), job_id),
+        )
+        return workspace
+    _request("PATCH", f"/rest/v1/jobs?id=eq.{job_id}", {"workspace": workspace}, use_secret=True)
+    return workspace
+
+
+def merge_workspace(job_id: str, patch: dict[str, Any], replace_keys: list[str] | None = None) -> dict[str, Any]:
+    replace = set(replace_keys or [])
+    current = get_workspace(job_id)
+    for key, value in patch.items():
+        if key in replace or not isinstance(value, dict) or not isinstance(current.get(key), dict):
+            current[key] = value
+        else:
+            merged = dict(current.get(key) or {})
+            merged.update(value)
+            current[key] = merged
+    return set_workspace(job_id, current)
+    if postgres_enabled():
+        _pg_execute("update public.profiles set role = %s where id = %s", (role, user_id))
+        return
+    _request("PATCH", f"/rest/v1/profiles?id=eq.{user_id}", {"role": role}, use_secret=True)
+
+
 def to_iso(unix_seconds: float) -> str:
     return datetime.fromtimestamp(unix_seconds, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -333,5 +396,8 @@ def startup() -> None:
             print(f"[db] applied {count} schema statements")
         except Exception as exc:  # noqa: BLE001
             print(f"[db] schema apply failed: {exc}")
+    from app import blobstore
+
+    blobstore.startup()
     status = ping()
     print(f"[db] ping {status}")

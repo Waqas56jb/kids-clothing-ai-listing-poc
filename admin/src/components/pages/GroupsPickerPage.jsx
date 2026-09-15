@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { Package } from 'lucide-react'
 import { listJobs } from '../../api'
 import Card from '../ui/Card'
-import Badge from '../ui/Badge'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 
@@ -20,7 +19,6 @@ export default function GroupsPickerPage() {
     <div>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Groups &amp; Packages</h1>
-        <Badge tone="info">Preview</Badge>
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Pick a completed project to review its AI-suggested bundles (grouped by size + category).

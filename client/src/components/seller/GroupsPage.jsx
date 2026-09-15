@@ -3,10 +3,9 @@ import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, Package, X } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob } from '../../api'
+import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { computeInitialGroups, mergeGroups, removeFromGroup, splitGroup } from '../../lib/groups'
 import { approvePricing, getGroupPricing, updatePricing } from '../../lib/pricing'
-import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
@@ -67,13 +66,29 @@ export default function GroupsPage() {
     getJob(jobId).then((data) => {
       const list = data.result?.garments ?? []
       setGarments(list)
-      const initial = computeInitialGroups(list)
-      setGroups(initial.groups)
-      setUngrouped(initial.ungrouped)
+      const saved = data.workspace?.groups
+      if (saved?.groups) {
+        setGroups(saved.groups)
+        setUngrouped(saved.ungrouped ?? [])
+      } else {
+        const initial = computeInitialGroups(list)
+        setGroups(initial.groups)
+        setUngrouped(initial.ungrouped)
+      }
     })
   }, [jobId])
 
   const byId = useMemo(() => Object.fromEntries((garments ?? []).map((g) => [g.id, g])), [garments])
+
+  async function persistGroups(nextGroups, nextUngrouped) {
+    setGroups(nextGroups)
+    if (nextUngrouped) setUngrouped(nextUngrouped)
+    try {
+      await patchWorkspace(jobId, { groups: { groups: nextGroups, ungrouped: nextUngrouped ?? ungrouped } })
+    } catch (err) {
+      toast.error(err.message || 'Could not save groups')
+    }
+  }
 
   if (garments === null) {
     return (
@@ -92,11 +107,10 @@ export default function GroupsPage() {
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Suggested Groups</h1>
-        <Badge tone="info">Preview</Badge>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        AI groups items by size and category as bundle suggestions. Remove an item, split a group, or merge two
-        groups below — final grouping logic and persistence land with backend integration.
+        Items are grouped by size and category. Split, merge, or remove — every change is saved so admin sees the
+        same bundles.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -121,7 +135,7 @@ export default function GroupsPage() {
                     <p className="text-xs text-slate-400">Size: {group.size}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setGroups((prev) => splitGroup(prev, group.id))}>
+                    <Button size="sm" variant="secondary" onClick={() => persistGroups(splitGroup(groups, group.id))}>
                       Split
                     </Button>
                     {groups.length > 1 && (
@@ -130,7 +144,7 @@ export default function GroupsPage() {
                         value=""
                         onChange={(event) => {
                           if (!event.target.value) return
-                          setGroups((prev) => mergeGroups(prev, group.id, event.target.value))
+                          persistGroups(mergeGroups(groups, group.id, event.target.value))
                           toast.success('Groups merged.')
                         }}
                       >
@@ -156,9 +170,8 @@ export default function GroupsPage() {
                         <Thumb jobId={jobId} garment={garment} />
                         <button
                           onClick={() => {
-                            const next = removeFromGroup(groups, ungrouped, group.id, id)
-                            setGroups(next.groups)
-                            setUngrouped(next.ungrouped)
+                          const next = removeFromGroup(groups, ungrouped, group.id, id)
+                          persistGroups(next.groups, next.ungrouped)
                           }}
                           className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/70 text-white opacity-0 transition group-hover:opacity-100"
                           aria-label="Remove from group"

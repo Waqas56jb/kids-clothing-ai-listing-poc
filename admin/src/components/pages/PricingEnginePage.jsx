@@ -11,7 +11,6 @@ import {
   MOCK_CATEGORY_BASE_RANGES,
   PRICING_STATUS,
 } from '../../lib/pricing'
-import Badge from '../ui/Badge'
 import Card from '../ui/Card'
 import StatCard from '../ui/StatCard'
 import Skeleton from '../ui/Skeleton'
@@ -58,7 +57,8 @@ export default function PricingEnginePage() {
         })
       })
 
-      const { groups } = computeInitialGroups(garments)
+      const savedGroups = job.workspace?.groups?.groups
+      const { groups } = savedGroups ? { groups: savedGroups } : computeInitialGroups(garments)
       const groupPricings = await Promise.all(groups.map((g) => getGroupPricing(job.job_id, g)))
       groups.forEach((group, i) => {
         packageRows.push({ jobId: job.job_id, projectName: job.job_id.slice(0, 10), group, pricing: groupPricings[i] })
@@ -102,12 +102,9 @@ export default function PricingEnginePage() {
     <div>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Pricing Engine</h1>
-        <Badge tone="info">Preview</Badge>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Every price shown here is an AI recommendation, never a final price, until a seller or admin explicitly
-        approves it or sets a manual value. The real pricing engine (market data, historical sales, brand value)
-        connects here in Milestone 4 -- this mock only stands in for its shape and workflow.
+        Prices are stored in the database. Approve, adjust, or reject — sellers and admins share the same records.
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">

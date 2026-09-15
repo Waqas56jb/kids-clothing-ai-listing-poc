@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob } from '../../api'
+import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { toneForCondition, toneForMatch } from '../../lib/garment'
 import { approvePricing, getGarmentPricing, updatePricing } from '../../lib/pricing'
 import Badge from '../ui/Badge'
@@ -68,8 +68,25 @@ export default function GarmentDetailPage() {
     )
   }
 
-  function handleSave() {
-    toast.success('Saved locally — connecting this to the backend is planned for the next milestone.')
+  async function handleSave() {
+    try {
+      await patchWorkspace(jobId, {
+        garment_edits: {
+          [garment.id]: {
+            category: form.category,
+            brand: form.brand,
+            size: form.size,
+            color: form.color,
+            condition: form.condition,
+            gender: form.gender,
+            defects: form.defects,
+          },
+        },
+      })
+      toast.success('Saved to the database. Admin can see these edits too.')
+    } catch (err) {
+      toast.error(err.message || 'Could not save')
+    }
   }
 
   async function handleApprovePricing() {

@@ -56,7 +56,10 @@ clothing rather than kids'). Swap in real client photos for that.
 .venv\Scripts\python -m uvicorn app.main:app --reload
 ```
 
-Runs on `http://127.0.0.1:8000`. Two endpoints:
+Runs on `http://127.0.0.1:8000` by default. The Vite apps proxy `/api` and
+`/files` to `http://127.0.0.1:8001` when 8000 is already occupied by an
+older API process. Start this app with `--port 8001` in that case so local
+uploads write to Postgres instead of only process memory.
 
 - `POST /api/jobs` — multipart upload, one or more images. Saves them to
   `uploads/{job_id}/`, starts processing in a background thread (a real

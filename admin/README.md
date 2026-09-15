@@ -21,7 +21,7 @@ npm run dev
 
 Opens on `http://localhost:5174` (the client app uses 5173 — both can run
 side by side). The dev server proxies `/api` and `/files` to the backend at
-`http://127.0.0.1:8000` (see `vite.config.js`).
+`http://127.0.0.1:8001` (see `vite.config.js`).
 
 ## Linking to the seller app
 
