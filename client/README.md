@@ -1,12 +1,14 @@
-# Client — AI Clothing Listing (upload → live progress → results)
+# Client — Seller + Admin frontend
 
-A simple, responsive React app: upload seller photos, watch the AI pipeline
-work through them in real time, and see the detected garments on screen.
-This is the upload/results flow only — the full seller/admin review UI
-(accept/edit/merge/split, grouping, listings) is Milestone 2.
+A routed, multi-page React app in a blue/white design system covering the
+full Seller (Milestone 2) and Admin (Milestone 3) specs: upload, live AI
+progress, garment results/detail/editing, same-garment matching review,
+suggested groups/packages, and listing preview — plus an admin console for
+projects, garment/detection review, jobs monitoring, and a cross-project
+review queue.
 
-Requires the backend API to be running (see `../backend/README.md`,
-"Web API" section) — this app is just the UI on top of it.
+Requires the backend API to be running (see `../backend/README.md`, "Web
+API" section) — this app is just the UI on top of it.
 
 ## Setup & run
 
@@ -30,18 +32,36 @@ service **rebuilt** (a plain restart won't pick up a new value) —
 If it's ever unset, `api.js` falls back to the backend URL this project is
 currently deployed at, so the deployed app keeps working either way.
 
-## How it works
+## Structure
 
-`src/App.jsx` is a small screen state machine:
+```
+src/
+  components/
+    SellerLayout.jsx, AdminLayout.jsx   # topbar / sidebar chrome per persona
+    ui/            shared primitives: Button, Card, Badge, Input, Table,
+                   Modal, Skeleton, EmptyState, Tabs, Toast, StatCard
+    seller/        Dashboard, Upload, Processing, Results, GarmentDetail,
+                   MatchingReview, Groups, ListingPreview
+    admin/         AdminDashboard, Projects, ProjectDetail,
+                   GarmentManagement, DetectionReview, JobsMonitor,
+                   ReviewQueue, AdminGroups/AdminListings (project pickers)
+  lib/
+    garment.js     shared badge/tone logic for condition & match status
+    groups.js      client-side grouping heuristic (size + category)
+    listing.js     templated listing title/description from real attributes
+  api.js           fetch wrappers: createJob, getJob, listJobs, fileUrl
+```
 
-1. **Upload** (`components/UploadScreen.jsx`) — drag-and-drop or pick
-   multiple photos, preview thumbnails, then `POST /api/jobs`.
-2. **Processing** (`components/ProcessingScreen.jsx`) — polls
-   `GET /api/jobs/{id}` every ~1.5s and shows live stage/progress. A real
-   photo can take 1-4+ minutes to fully process (SAM2 segmentation + a
-   vision LLM call per detected item), so this is a background job the UI
-   watches, not a single blocking request.
-3. **Results** (`components/ResultsScreen.jsx` + `GarmentCard.jsx`) — a
-   responsive card grid (1 column on phones, up to 4 on desktop) showing
-   each detected garment's cropped photo, category/brand/size/color,
-   condition, and match confidence, color-coded green/amber/red.
+`App.jsx` is the route table (`react-router-dom`) — Seller routes render
+inside `SellerLayout`, Admin routes inside `AdminLayout` at `/admin/*`.
+
+## What's real vs. preview
+
+Upload → processing → results → garment detail → matching review, and
+every admin page, all read real data from the pipeline via `GET /api/jobs`
+and `GET /api/jobs/{id}`. Three things have no backend concept yet and are
+local-state-only previews, clearly labeled **Preview** in the UI: suggested
+groups/packages, listing copy, and manual match confirm/reject decisions
+(`lib/groups.js` / `lib/listing.js` isolate this logic so swapping in real
+endpoints later is a clean boundary, not a rewrite). Garment detail edits
+also stay local for the same reason — no `PATCH` endpoint exists yet.
