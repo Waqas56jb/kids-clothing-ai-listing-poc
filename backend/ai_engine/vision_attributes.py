@@ -94,11 +94,17 @@ _SYSTEM_PROMPT = (
     "studio light unevenly, producing a lighter sheen or subtle patchiness across "
     "the ridges that is texture, not a stain -- do not report that as damage "
     "unless the discoloration has a clearly different hue from the rest of the "
-    "fabric (not just brightness) and an irregular, non-repeating shape. If "
-    "you're not confident enough to give `condition` "
-    "confidence >= 0.85, leave `defects` null and set `condition` to 'good' "
-    "rather than guessing 'damaged' at low confidence -- an uncertain damage "
-    "claim is worse than no claim at all.\n"
+    "fabric (not just brightness) and an irregular, non-repeating shape. Frilled, "
+    "pinked, scalloped, or crocheted-look trim edges (common on ruffled sleeves, "
+    "collars, and hems) are *designed* to look irregular and slightly frayed at "
+    "close range -- that is the finished product, not damage, unless individual "
+    "threads are visibly pulled loose and dangling. Button plackets, snap "
+    "closures, and seam allowances create small gaps and puckers by "
+    "construction -- do not read those as holes. When genuinely unsure whether "
+    "something is a design/construction detail or real damage, treat it as a "
+    "design detail: only call it a defect if you're confident a repair would "
+    "actually be needed. Leave `defects` null and `condition` 'good' rather than "
+    "guess -- an uncertain damage claim is worse than no claim at all.\n"
     "- Image A's cutout edge is frequently ragged or notched -- around ruffles, "
     "sleeves, collars, or wherever a tag/hanger/clip sat in the original photo -- "
     "purely because automatic background removal is imperfect there, not because "
@@ -155,6 +161,7 @@ def extract_attributes(
 
     response = client.chat.completions.create(
         model=SETTINGS.openai_vision_model,
+        temperature=0,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {
