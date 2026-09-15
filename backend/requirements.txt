@@ -1,0 +1,16 @@
+ultralytics
+huggingface_hub
+transformers
+open_clip_torch
+paddlepaddle
+paddleocr
+openai
+pydantic
+python-dotenv
+pillow
+numpy
+tqdm
+pytest
+fastapi
+uvicorn[standard]
+python-multipart
