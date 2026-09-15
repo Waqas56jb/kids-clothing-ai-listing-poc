@@ -39,11 +39,7 @@ async def create_job(images: list[UploadFile] = File(...)):
     return {"job_id": job.id}
 
 
-@app.get("/api/jobs/{job_id}")
-async def get_job(job_id: str):
-    job = jobs.get_job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+def _job_summary(job: jobs.Job) -> dict:
     return {
         "job_id": job.id,
         "status": job.status,
@@ -51,5 +47,23 @@ async def get_job(job_id: str):
         "current": job.current,
         "total": job.total,
         "error": job.error,
+        "created_at": job.created_at,
+        "image_count": job.image_count,
+        "garment_count": len(job.result.garments) if job.result else None,
+    }
+
+
+@app.get("/api/jobs")
+async def list_jobs():
+    return [_job_summary(job) for job in jobs.list_jobs()]
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        **_job_summary(job),
         "result": job.result.model_dump() if job.result else None,
     }

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import threading
+import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -25,6 +26,8 @@ class Job:
     total: int = 0
     result: PipelineResult | None = None
     error: str | None = None
+    created_at: float = field(default_factory=time.time)
+    image_count: int = 0
 
 
 _jobs: dict[str, Job] = {}
@@ -40,7 +43,7 @@ def create_job(files: list[tuple[str, bytes]]) -> Job:
     requests (like progress polling) are being served.
     """
     job_id = uuid.uuid4().hex[:12]
-    job = Job(id=job_id)
+    job = Job(id=job_id, image_count=len(files))
     _jobs[job_id] = job
 
     input_dir = UPLOAD_ROOT / job_id
@@ -56,6 +59,16 @@ def create_job(files: list[tuple[str, bytes]]) -> Job:
 
 def get_job(job_id: str) -> Job | None:
     return _jobs.get(job_id)
+
+
+def list_jobs() -> list[Job]:
+    """All known jobs, newest first.
+
+    In-memory only, per the POC scope -- this resets on every server
+    restart, same as the jobs themselves. Good enough for an admin view
+    into "what's running / recently ran" without standing up a database.
+    """
+    return sorted(_jobs.values(), key=lambda job: job.created_at, reverse=True)
 
 
 def _run_job(job: Job, input_dir: Path) -> None:

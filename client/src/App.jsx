@@ -1,57 +1,54 @@
-import { useState } from 'react'
-import { createJob } from './api'
-import ProcessingScreen from './components/ProcessingScreen'
-import ResultsScreen from './components/ResultsScreen'
-import UploadScreen from './components/UploadScreen'
+import { Route, Routes } from 'react-router-dom'
+import SellerLayout from './components/SellerLayout'
+import AdminLayout from './components/AdminLayout'
+
+import DashboardPage from './components/seller/DashboardPage'
+import UploadPage from './components/seller/UploadPage'
+import ProcessingPage from './components/seller/ProcessingPage'
+import ResultsPage from './components/seller/ResultsPage'
+import GarmentDetailPage from './components/seller/GarmentDetailPage'
+import MatchingReviewPage from './components/seller/MatchingReviewPage'
+import GroupsPage from './components/seller/GroupsPage'
+import ListingPreviewPage from './components/seller/ListingPreviewPage'
+
+import AdminDashboardPage from './components/admin/AdminDashboardPage'
+import ProjectsPage from './components/admin/ProjectsPage'
+import ProjectDetailPage from './components/admin/ProjectDetailPage'
+import GarmentManagementPage from './components/admin/GarmentManagementPage'
+import DetectionReviewPage from './components/admin/DetectionReviewPage'
+import JobsMonitorPage from './components/admin/JobsMonitorPage'
+import ReviewQueuePage from './components/admin/ReviewQueuePage'
+import AdminGroupsPage from './components/admin/AdminGroupsPage'
+import AdminListingsPage from './components/admin/AdminListingsPage'
 
 export default function App() {
-  const [screen, setScreen] = useState('upload') // 'upload' | 'processing' | 'results'
-  const [jobId, setJobId] = useState(null)
-  const [photoCount, setPhotoCount] = useState(0)
-  const [result, setResult] = useState(null)
-  const [error, setError] = useState(null)
-
-  async function handleSubmit(files) {
-    setError(null)
-    try {
-      const { job_id } = await createJob(files)
-      setJobId(job_id)
-      setPhotoCount(files.length)
-      setScreen('processing')
-    } catch {
-      setError('Could not upload those photos. Please try again.')
-    }
-  }
-
-  function handleDone(finalResult) {
-    setResult(finalResult)
-    setScreen('results')
-  }
-
-  function handleError(message) {
-    setError(message)
-    setScreen('upload')
-  }
-
-  function reset() {
-    setJobId(null)
-    setResult(null)
-    setError(null)
-    setScreen('upload')
-  }
-
   return (
-    <div className="min-h-screen">
-      {error && (
-        <div className="mx-auto mt-4 max-w-lg rounded-2xl bg-rose-50 px-4 py-3 text-center text-sm text-rose-600">
-          {error}
-        </div>
-      )}
-      {screen === 'upload' && <UploadScreen onSubmit={handleSubmit} />}
-      {screen === 'processing' && (
-        <ProcessingScreen jobId={jobId} photoCount={photoCount} onDone={handleDone} onError={handleError} />
-      )}
-      {screen === 'results' && <ResultsScreen result={result} jobId={jobId} onReset={reset} />}
-    </div>
+    <Routes>
+      <Route element={<SellerLayout />}>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/upload" element={<UploadPage />} />
+        <Route path="/processing/:jobId" element={<ProcessingPage />} />
+        <Route path="/results/:jobId" element={<ResultsPage />} />
+        <Route path="/garments/:jobId/:detectionId" element={<GarmentDetailPage />} />
+        <Route path="/matching/:jobId" element={<MatchingReviewPage />} />
+        <Route path="/groups/:jobId" element={<GroupsPage />} />
+        <Route path="/listings/:jobId" element={<ListingPreviewPage />} />
+      </Route>
+
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:jobId" element={<ProjectDetailPage />} />
+        <Route path="garments/:jobId" element={<GarmentManagementPage />} />
+        <Route path="garments/:jobId/:detectionId" element={<DetectionReviewPage />} />
+        <Route path="matching/:jobId" element={<MatchingReviewPage />} />
+        <Route path="groups" element={<AdminGroupsPage />} />
+        <Route path="groups/:jobId" element={<GroupsPage />} />
+        <Route path="jobs" element={<JobsMonitorPage />} />
+        <Route path="review-queue" element={<ReviewQueuePage />} />
+        <Route path="listings" element={<AdminListingsPage />} />
+        <Route path="listings/:jobId" element={<ListingPreviewPage />} />
+      </Route>
+    </Routes>
   )
 }

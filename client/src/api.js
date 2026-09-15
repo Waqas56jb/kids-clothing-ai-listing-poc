@@ -25,6 +25,12 @@ export async function getJob(jobId) {
   return res.json()
 }
 
+export async function listJobs() {
+  const res = await fetch(`${API_BASE}/api/jobs`)
+  if (!res.ok) throw new Error('Failed to fetch jobs')
+  return res.json()
+}
+
 export function fileUrl(jobId, relativePath) {
   return `${API_BASE}/files/${jobId}/${relativePath}`
 }

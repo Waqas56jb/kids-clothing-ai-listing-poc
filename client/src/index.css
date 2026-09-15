@@ -1,23 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Quicksand", ui-rounded, "Inter", sans-serif;
+  --font-display: "Manrope", "Inter", ui-sans-serif, sans-serif;
   --font-sans: "Inter", ui-sans-serif, sans-serif;
 
-  --color-brand-50: #fff5f2;
-  --color-brand-100: #ffe8e1;
-  --color-brand-200: #ffd0c2;
-  --color-brand-300: #ffab92;
-  --color-brand-400: #ff8264;
-  --color-brand-500: #fb5f3f;
-  --color-brand-600: #e8462a;
-  --color-brand-700: #c23520;
-  --color-brand-800: #9c2e1e;
-  --color-brand-900: #7e2a1d;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
 
-  --color-cream-50: #fffdf9;
-  --color-cream-100: #fdf6ec;
-  --color-cream-200: #f9ecd9;
+  --color-surface: #f6f8fc;
+
+  --shadow-soft: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-elevated: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 12px 32px -8px rgb(37 99 235 / 0.12);
 }
 
 html {
@@ -25,8 +26,18 @@ html {
 }
 
 body {
-  background: linear-gradient(180deg, var(--color-cream-100) 0%, var(--color-cream-50) 100%);
+  background:
+    radial-gradient(1200px 600px at 100% -10%, color-mix(in srgb, var(--color-brand-100) 55%, transparent), transparent),
+    radial-gradient(900px 500px at -10% 10%, color-mix(in srgb, var(--color-brand-50) 70%, transparent), transparent),
+    var(--color-surface);
   min-height: 100vh;
+}
+
+.shadow-soft {
+  box-shadow: var(--shadow-soft);
+}
+.shadow-elevated {
+  box-shadow: var(--shadow-elevated);
 }
 
 @keyframes pulse-soft {
@@ -35,4 +46,25 @@ body {
 }
 .animate-pulse-soft {
   animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.animate-shimmer {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Thin, unobtrusive scrollbar for admin tables/sidebars */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-brand-200) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--color-brand-200);
+  border-radius: 9999px;
 }
