@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, RotateCcw, Tag } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, RotateCcw, Tag } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { generateDescription, generateTitle } from '../../lib/listing'
@@ -20,9 +20,11 @@ function ListingCard({ jobId, garment, index, listing }) {
 
   useEffect(() => {
     let active = true
-    getGarmentPricing(jobId, garment).then((p) => {
-      if (active) setPricing(p)
-    })
+    getGarmentPricing(jobId, garment)
+      .then((p) => {
+        if (active) setPricing(p)
+      })
+      .catch((err) => console.error(err))
     return () => {
       active = false
     }
@@ -128,13 +130,40 @@ export default function ListingPreviewPage() {
   const { jobId } = useParams()
   const [garments, setGarments] = useState(null)
   const [listings, setListings] = useState({})
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    getJob(jobId).then((data) => {
-      setGarments(data.result?.garments ?? [])
-      setListings(data.workspace?.listings ?? {})
-    })
-  }, [jobId])
+    let cancelled = false
+    setError(null)
+    getJob(jobId)
+      .then((data) => {
+        if (cancelled) return
+        setGarments(data.result?.garments ?? [])
+        setListings(data.workspace?.listings ?? {})
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setError(err.message || 'Could not load this batch')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [jobId, retryKey])
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this batch"
+          description={error}
+          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
+        />
+      </div>
+    )
+  }
 
   if (garments === null) {
     return (

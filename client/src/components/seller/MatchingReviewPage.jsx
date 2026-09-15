@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Check, Link2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Link2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { toneForMatch } from '../../lib/garment'
@@ -61,13 +61,40 @@ export default function MatchingReviewPage() {
   const { jobId } = useParams()
   const [garments, setGarments] = useState(null)
   const [decisions, setDecisions] = useState({})
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    getJob(jobId).then((data) => {
-      setGarments(data.result?.garments ?? [])
-      setDecisions(data.workspace?.match_decisions ?? {})
-    })
-  }, [jobId])
+    let cancelled = false
+    setError(null)
+    getJob(jobId)
+      .then((data) => {
+        if (cancelled) return
+        setGarments(data.result?.garments ?? [])
+        setDecisions(data.workspace?.match_decisions ?? {})
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setError(err.message || 'Could not load this batch')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [jobId, retryKey])
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this batch"
+          description={error}
+          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
+        />
+      </div>
+    )
+  }
 
   if (garments === null) {
     return (

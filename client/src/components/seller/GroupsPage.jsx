@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Package, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Package, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { computeInitialGroups, mergeGroups, removeFromGroup, splitGroup } from '../../lib/groups'
@@ -16,9 +16,11 @@ function GroupPricing({ jobId, group }) {
 
   useEffect(() => {
     let active = true
-    getGroupPricing(jobId, group).then((p) => {
-      if (active) setPricing(p)
-    })
+    getGroupPricing(jobId, group)
+      .then((p) => {
+        if (active) setPricing(p)
+      })
+      .catch((err) => console.error(err))
     return () => {
       active = false
     }
@@ -61,22 +63,36 @@ export default function GroupsPage() {
   const [garments, setGarments] = useState(null)
   const [groups, setGroups] = useState([])
   const [ungrouped, setUngrouped] = useState([])
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    getJob(jobId).then((data) => {
-      const list = data.result?.garments ?? []
-      setGarments(list)
-      const saved = data.workspace?.groups
-      if (saved?.groups) {
-        setGroups(saved.groups)
-        setUngrouped(saved.ungrouped ?? [])
-      } else {
-        const initial = computeInitialGroups(list)
-        setGroups(initial.groups)
-        setUngrouped(initial.ungrouped)
-      }
-    })
-  }, [jobId])
+    let cancelled = false
+    setError(null)
+    getJob(jobId)
+      .then((data) => {
+        if (cancelled) return
+        const list = data.result?.garments ?? []
+        setGarments(list)
+        const saved = data.workspace?.groups
+        if (saved?.groups) {
+          setGroups(saved.groups)
+          setUngrouped(saved.ungrouped ?? [])
+        } else {
+          const initial = computeInitialGroups(list)
+          setGroups(initial.groups)
+          setUngrouped(initial.ungrouped)
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setError(err.message || 'Could not load this batch')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [jobId, retryKey])
 
   const byId = useMemo(() => Object.fromEntries((garments ?? []).map((g) => [g.id, g])), [garments])
 
@@ -88,6 +104,19 @@ export default function GroupsPage() {
     } catch (err) {
       toast.error(err.message || 'Could not save groups')
     }
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this batch"
+          description={error}
+          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
+        />
+      </div>
+    )
   }
 
   if (garments === null) {

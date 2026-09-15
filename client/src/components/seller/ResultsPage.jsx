@@ -24,19 +24,71 @@ export default function ResultsPage() {
   const navigate = useNavigate()
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
-    getJob(jobId).then((data) => {
-      if (!cancelled) {
+    setLoading(true)
+    setError(null)
+    const timeout = setTimeout(() => {
+      if (cancelled) return
+      setError('This request is taking too long. The batch may no longer exist in the database.')
+      setLoading(false)
+    }, 12000)
+    getJob(jobId)
+      .then((data) => {
+        if (cancelled) return
+        clearTimeout(timeout)
+        if (!data?.result && data?.status === 'error') {
+          setError(data.error || 'This batch failed while processing.')
+          setLoading(false)
+          return
+        }
+        if (!data?.result) {
+          setError('No results yet for this batch. Open Dashboard and start a new upload.')
+          setLoading(false)
+          return
+        }
         setResult(data.result)
         setLoading(false)
-      }
-    })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        clearTimeout(timeout)
+        console.error(err)
+        const message = err.message || 'Could not load this batch'
+        setError(
+          /not found/i.test(message)
+            ? 'This batch is not in the database (it was only on the old local server). Start a new upload from the dashboard.'
+            : message,
+        )
+        setLoading(false)
+      })
     return () => {
       cancelled = true
+      clearTimeout(timeout)
     }
   }, [jobId])
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this batch"
+          description={error}
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => navigate('/')}>Go to dashboard</Button>
+              <Button variant="secondary" onClick={() => navigate('/upload')}>
+                New upload
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    )
+  }
 
   if (loading) {
     return (

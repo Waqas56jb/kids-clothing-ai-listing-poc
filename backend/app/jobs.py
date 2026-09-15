@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import tempfile
 import threading
 import time
 import uuid
@@ -93,7 +92,10 @@ def _job_from_row(row: dict) -> Job:
 
 def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, access_token: str | None = None) -> Job:
     job_id = uuid.uuid4().hex[:12]
-    scratch = Path(tempfile.mkdtemp(prefix=f"kidsai-{job_id}-"))
+    # Keep scratch under the backend tree. Windows tempfile paths break some
+    # CV libs with Errno 22; Storage remains the durable copy after upload.
+    scratch = UPLOAD_ROOT / job_id
+    scratch.mkdir(parents=True, exist_ok=True)
     job = Job(id=job_id, image_count=len(files), user_id=user_id, access_token=access_token, scratch_dir=str(scratch))
     _jobs[job_id] = job
     try:
@@ -166,17 +168,11 @@ def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: 
     return sorted(jobs, key=lambda job: job.created_at, reverse=True)
 
 
-def _cleanup_scratch(job: Job) -> None:
-    if job.scratch_dir:
-        shutil.rmtree(job.scratch_dir, ignore_errors=True)
-        job.scratch_dir = None
-
-
 def _run_job(job: Job, input_dir: Path) -> None:
     job.status = "processing"
     _persist(job)
-    scratch = Path(job.scratch_dir) if job.scratch_dir else input_dir.parent
-    output_dir = scratch / "out"
+    output_dir = OUTPUT_ROOT / job.id
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     def on_progress(stage: str, current: int, total: int) -> None:
         job.stage = stage
@@ -186,7 +182,10 @@ def _run_job(job: Job, input_dir: Path) -> None:
 
     try:
         job.result = run_pipeline(input_dir, output_dir, on_progress=on_progress)
-        blobstore.upload_tree(job.id, output_dir, "artifact")
+        try:
+            blobstore.upload_tree(job.id, output_dir, "artifact")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[jobs] output upload failed {job.id}: {exc}")
         job.status = "done"
         _persist(job)
         job.workspace = workspace_mod.seed_workspace(job.id, job.result)
@@ -195,4 +194,7 @@ def _run_job(job: Job, input_dir: Path) -> None:
         job.status = "error"
         _persist(job)
     finally:
-        _cleanup_scratch(job)
+        # Keep outputs for /files fallback; remove only the upload scratch copy.
+        if job.scratch_dir:
+            shutil.rmtree(job.scratch_dir, ignore_errors=True)
+            job.scratch_dir = None

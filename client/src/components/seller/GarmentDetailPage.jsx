@@ -9,6 +9,7 @@ import { approvePricing, getGarmentPricing, updatePricing } from '../../lib/pric
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
+import EmptyState from '../ui/EmptyState'
 import PricingCard from '../pricing/PricingCard'
 
 function ConfidenceBar({ value = 0 }) {
@@ -36,25 +37,49 @@ export default function GarmentDetailPage() {
   const [garment, setGarment] = useState(null)
   const [form, setForm] = useState(null)
   const [pricing, setPricing] = useState(null)
+  const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    getJob(jobId).then((data) => {
-      if (cancelled) return
-      setJob(data)
-      const found = data.result?.garments.find((g) => g.detection_ids.includes(detectionId))
-      setGarment(found)
-      if (found) {
-        setForm({ ...found })
-        getGarmentPricing(jobId, found).then((p) => {
-          if (!cancelled) setPricing(p)
-        })
-      }
-    })
+    setError(null)
+    getJob(jobId)
+      .then((data) => {
+        if (cancelled) return
+        setJob(data)
+        const found = data.result?.garments.find((g) => g.detection_ids.includes(detectionId))
+        setGarment(found)
+        if (found) {
+          setForm({ ...found })
+          getGarmentPricing(jobId, found)
+            .then((p) => {
+              if (!cancelled) setPricing(p)
+            })
+            .catch((err) => console.error(err))
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setError(err.message || 'Could not load this garment')
+      })
     return () => {
       cancelled = true
     }
-  }, [jobId, detectionId])
+  }, [jobId, detectionId, retryKey])
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load this garment"
+          description={error}
+          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
+        />
+      </div>
+    )
+  }
 
   if (!job || !form) {
     return (

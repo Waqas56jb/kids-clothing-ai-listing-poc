@@ -25,9 +25,11 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
 
   useEffect(() => {
     let active = true
-    getGarmentPricing(jobId, garment).then((p) => {
-      if (active) setPricing(p)
-    })
+    getGarmentPricing(jobId, garment)
+      .then((p) => {
+        if (active) setPricing(p)
+      })
+      .catch((err) => console.error(err))
     return () => {
       active = false
     }
