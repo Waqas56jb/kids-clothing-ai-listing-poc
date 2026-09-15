@@ -65,6 +65,36 @@ Runs on `http://127.0.0.1:8000`. Two endpoints:
 Crops/masks for a finished job are served as static files at
 `/files/{job_id}/debug/masks/{detection_id}_masked.png`, etc.
 
+### Deploying to Railway
+
+Railway's builder (Railpack) scans whatever it's given for something it
+recognizes to build — since this repo has `backend/` and `client/` as
+sibling folders with nothing at the repo root, it needs to be told to look
+*inside* `backend/`. `railway.json` and `.python-version` here handle the
+build/start commands once that's set; the root-directory piece has to be
+set in the dashboard (there's no repo file for it):
+
+1. In the Railway service → **Settings → Source → Root Directory**, set it
+   to `backend`.
+2. In **Settings → Variables**, add `OPENAI_API_KEY` (attribute extraction
+   silently degrades without it — see "If `OPENAI_API_KEY` is missing" in
+   the Config section above — it won't fail the build/deploy, just skip
+   that step). The other `.env.example` values all have code defaults and
+   don't need to be set unless you want to override them.
+3. Redeploy. Railpack will now find `requirements.txt` inside `backend/`
+   and use the `startCommand` from `railway.json`
+   (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
+
+One thing worth knowing going in: this pipeline is genuinely heavy —
+torch, transformers, paddleocr, and several hundred MB of model weights
+downloaded on first use. Railway's smaller plans may be tight on RAM/CPU
+for it, and without a persistent Volume mounted at `models_cache/`, every
+redeploy re-downloads all the model weights from scratch (slow first
+request after each deploy, not a failure). If it deploys but then crashes
+or times out under load rather than failing to build, that's a
+resource/plan-size question, not a code problem — worth flagging back here
+if it happens.
+
 ### Layout
 
 ```
