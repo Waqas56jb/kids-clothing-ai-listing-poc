@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import torch
 from PIL import Image
-from torchvision.ops import nms
 
 from ai_engine.config import SETTINGS
 from ai_engine.schemas import BBox, Detection
@@ -46,6 +44,9 @@ def get_model():
 
 
 def detect_garments(image: Image.Image, image_id: str, confidence_threshold: float = 0.2) -> list[Detection]:
+    import torch
+    from torchvision.ops import nms
+
     processor, model = get_model()
 
     inputs = processor(images=image, text=_GARMENT_PROMPT, return_tensors="pt")

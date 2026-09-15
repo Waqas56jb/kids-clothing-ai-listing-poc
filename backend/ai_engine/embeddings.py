@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import open_clip
-import torch
 from PIL import Image
 
 from ai_engine.config import SETTINGS
@@ -14,6 +12,8 @@ _preprocess = None
 def _load() -> tuple:
     global _model, _preprocess
     if _model is None:
+        import open_clip
+
         _model, _, _preprocess = open_clip.create_model_and_transforms(
             SETTINGS.clip_model_name, pretrained=SETTINGS.clip_pretrained
         )
@@ -26,6 +26,8 @@ def warm_up() -> None:
 
 
 def embed_garment(image: Image.Image) -> np.ndarray:
+    import torch
+
     model, preprocess = _load()
     tensor = preprocess(image).unsqueeze(0)
     with torch.no_grad():

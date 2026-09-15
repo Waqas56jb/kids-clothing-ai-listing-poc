@@ -5,11 +5,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
-from ultralytics import SAM
 
 from ai_engine.config import SETTINGS
 
-_model: SAM | None = None
+_model = None
 
 
 def _checkpoint_path() -> Path:
@@ -21,9 +20,11 @@ def _checkpoint_path() -> Path:
     return path
 
 
-def get_model() -> SAM:
+def get_model():
     global _model
     if _model is None:
+        from ultralytics import SAM
+
         _model = SAM(str(_checkpoint_path()))
     return _model
 

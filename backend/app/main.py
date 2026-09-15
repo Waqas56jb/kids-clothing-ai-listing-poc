@@ -22,6 +22,14 @@ jobs.OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(jobs.OUTPUT_ROOT)), name="files")
 
 
+@app.get("/")
+async def health():
+    # Deliberately does not touch ai_engine's models -- those load lazily on
+    # first job, so a healthy response here just confirms the API process
+    # itself booted, independent of whether/when a job has run yet.
+    return {"status": "ok", "service": "kids-clothing-ai-listing-api"}
+
+
 @app.post("/api/jobs")
 async def create_job(images: list[UploadFile] = File(...)):
     if not images:
