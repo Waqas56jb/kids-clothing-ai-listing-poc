@@ -95,6 +95,14 @@ or times out under load rather than failing to build, that's a
 resource/plan-size question, not a code problem — worth flagging back here
 if it happens.
 
+`opencv-python` (pulled in by `ultralytics`/`paddlex` for `cv2`) needs
+`libgl1`/`libglib2.0-0` on the system, which Railway's minimal image
+doesn't have by default (`ImportError: libGL.so.1: cannot open shared
+object file`) — `railpack.json` here tells Railpack to install those into
+the deploy image. If a future Railpack version ignores that file for some
+reason, the equivalent fix is a `RAILPACK_DEPLOY_APT_PACKAGES=libgl1
+libglib2.0-0` service variable in the dashboard instead.
+
 ### Layout
 
 ```
