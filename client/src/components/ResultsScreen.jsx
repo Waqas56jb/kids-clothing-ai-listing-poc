@@ -17,6 +17,7 @@ export default function ResultsScreen({ result, jobId, onReset }) {
     acc[garment.match_status] = (acc[garment.match_status] ?? 0) + 1
     return acc
   }, {})
+  const flaggedForDamage = garments.filter((garment) => garment.defects).length
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
@@ -43,10 +44,19 @@ export default function ResultsScreen({ result, jobId, onReset }) {
         <SummaryPill label="high confidence" count={counts.high_confidence ?? 0} tone="good" />
         <SummaryPill label="medium confidence" count={counts.medium_confidence ?? 0} tone="ok" />
         <SummaryPill label="need review" count={counts.needs_review ?? 0} tone="bad" />
+        <SummaryPill label="possible damage flagged" count={flaggedForDamage} tone="ok" />
       </div>
 
+      {flaggedForDamage > 0 && (
+        <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+          ⚠️ {flaggedForDamage} item{flaggedForDamage > 1 ? 's' : ''} {flaggedForDamage > 1 ? 'have' : 'has'} possible
+          damage flagged by AI — this is a suggestion, not a verdict. Please check each one against the actual
+          garment before publishing.
+        </div>
+      )}
+
       {result.notes?.length > 0 && (
-        <div className="mt-5 space-y-1 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="mt-3 space-y-1 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
           {result.notes.map((note, index) => (
             <p key={index}>ℹ️ {note}</p>
           ))}

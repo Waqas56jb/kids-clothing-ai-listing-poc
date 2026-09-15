@@ -17,6 +17,7 @@ class Settings:
     match_merge_threshold: float
     match_review_threshold: float
     gender_confidence_threshold: float
+    condition_confidence_threshold: float
 
     models_cache_dir: Path
     detector_model_id: str
@@ -37,6 +38,7 @@ def load_settings() -> Settings:
         match_merge_threshold=_float_env("MATCH_MERGE_THRESHOLD", 0.85),
         match_review_threshold=_float_env("MATCH_REVIEW_THRESHOLD", 0.65),
         gender_confidence_threshold=_float_env("GENDER_CONFIDENCE_THRESHOLD", 0.75),
+        condition_confidence_threshold=_float_env("CONDITION_CONFIDENCE_THRESHOLD", 0.85),
         models_cache_dir=Path(os.getenv("MODELS_CACHE_DIR", "models_cache")),
         detector_model_id=os.getenv("DETECTOR_MODEL_ID", "IDEA-Research/grounding-dino-tiny"),
         sam_checkpoint=os.getenv("SAM_CHECKPOINT", "sam2_t.pt"),

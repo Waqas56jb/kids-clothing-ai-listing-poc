@@ -1,10 +1,16 @@
 import Badge from './Badge'
 import { fileUrl } from '../api'
 
-function toneForCondition(condition) {
+function toneForCondition(condition, hasDefects) {
+  // Any AI-flagged possible damage is a suggestion for the seller to check,
+  // never a settled fact -- so it's styled as "needs review" (amber), not
+  // as a confident negative claim (red). The backend already drops
+  // low-confidence damage claims entirely; this is what's left even after
+  // that, and it still shouldn't read as more certain than it is.
+  if (hasDefects) return 'ok'
   if (!condition) return 'neutral'
   const c = condition.toLowerCase()
-  if (c === 'damaged' || c === 'worn') return 'bad'
+  if (c === 'worn') return 'bad'
   if (c === 'fair') return 'ok'
   return 'good'
 }
@@ -60,9 +66,17 @@ export default function GarmentCard({ garment, jobId }) {
           {garment.gender && <Field label="Gender" value={garment.gender} />}
         </dl>
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-          <Badge tone={toneForCondition(garment.condition)}>{garment.condition ?? 'unknown'}</Badge>
-          {garment.defects && <span className="text-xs text-rose-500">{garment.defects}</span>}
+        <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={toneForCondition(garment.condition, Boolean(garment.defects))}>
+              {garment.defects ? 'Needs review' : (garment.condition ?? 'unknown')}
+            </Badge>
+          </div>
+          {garment.defects && (
+            <p className="text-xs text-amber-700">
+              ⚠️ AI flagged possible damage — please verify: {garment.defects}
+            </p>
+          )}
         </div>
       </div>
     </div>

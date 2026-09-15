@@ -83,11 +83,22 @@ _SYSTEM_PROMPT = (
     "only if it plausibly matches what a real clothing label would say.\n"
     "- Before answering, deliberately scan the whole visible garment edge to edge "
     "for damage: holes, tears, rips, fraying, stains, discoloration, missing "
-    "buttons, broken zippers, pilling. This matters as much as color or brand — "
-    "a reseller loses money if visible damage is missed. If you see any of this, "
-    "describe it in `defects` and set `condition` to 'damaged', even if you're "
-    "also fairly confident about everything else. Never default to 'good' "
-    "without having actually checked for damage first.\n"
+    "buttons, broken zippers, pilling. Only report something in `defects` if you "
+    "could point to its exact location and describe its extent with genuine "
+    "confidence -- a wrongly-flagged 'damaged' on a perfectly good item is far "
+    "more costly here than a missed one, since a human always reviews the actual "
+    "garment before it's listed or sold. Photo noise you must NOT report as "
+    "damage: shadows, wrinkles/creases, folds, lighting variation, fabric weave "
+    "or knit texture, print/pattern elements, and the natural unevenness of worn "
+    "cotton or linen. Ribbed, waffle, or textured knits especially tend to catch "
+    "studio light unevenly, producing a lighter sheen or subtle patchiness across "
+    "the ridges that is texture, not a stain -- do not report that as damage "
+    "unless the discoloration has a clearly different hue from the rest of the "
+    "fabric (not just brightness) and an irregular, non-repeating shape. If "
+    "you're not confident enough to give `condition` "
+    "confidence >= 0.85, leave `defects` null and set `condition` to 'good' "
+    "rather than guessing 'damaged' at low confidence -- an uncertain damage "
+    "claim is worse than no claim at all.\n"
     "- Image A's cutout edge is frequently ragged or notched -- around ruffles, "
     "sleeves, collars, or wherever a tag/hanger/clip sat in the original photo -- "
     "purely because automatic background removal is imperfect there, not because "
@@ -174,14 +185,30 @@ def extract_attributes(
     if category in ("", "null", "none", "n/a", "not_a_garment"):
         category = "not_a_garment"
 
+    condition = _clean_nullable(payload.get("condition"))
+    defects = _clean_nullable(payload.get("defects"))
+
+    # A "damaged" call is a real trust cost if it's wrong (a good item gets
+    # discounted or pulled from a listing), while an uncertain one going
+    # unflagged just means a human reviews the photo as normal -- so a
+    # damage claim below this confidence gets dropped rather than shown as
+    # fact, regardless of what the model's `condition` field says. This is
+    # enforced here in code, not left to the prompt alone, since the
+    # model's self-reported confidence on this field has proven optimistic
+    # in practice (confidently wrong "damaged" calls on clean garments).
+    if defects is not None and confidence.condition < SETTINGS.condition_confidence_threshold:
+        defects = None
+        if condition and condition.strip().lower() == "damaged":
+            condition = None
+
     return Attributes(
         detection_id=detection_id,
         category=category,
         brand=_clean_nullable(payload.get("brand")),
         size=_clean_nullable(payload.get("size")),
         color=_clean_nullable(payload.get("color")),
-        condition=_clean_nullable(payload.get("condition")),
+        condition=condition,
         gender=gender,
-        defects=_clean_nullable(payload.get("defects")),
+        defects=defects,
         confidence=confidence,
     )
