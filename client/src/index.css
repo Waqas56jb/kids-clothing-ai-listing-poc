@@ -69,6 +69,46 @@ h1, h2, h3, .font-display {
 }
 .animate-float { animation: float-slow 6s ease-in-out infinite; }
 
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(1.5deg); }
+}
+.animate-float-slower { animation: float-slower 9s ease-in-out infinite; }
+
+@keyframes blob-morph {
+  0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; }
+  33% { border-radius: 62% 38% 30% 70% / 50% 62% 38% 50%; }
+  66% { border-radius: 35% 65% 55% 45% / 65% 35% 65% 35%; }
+}
+.animate-blob { animation: blob-morph 14s ease-in-out infinite; }
+
+@keyframes blob-morph-slow {
+  0%, 100% { border-radius: 55% 45% 35% 65% / 40% 55% 45% 60%; }
+  50% { border-radius: 40% 60% 60% 40% / 60% 40% 60% 40%; }
+}
+.animate-blob-slow { animation: blob-morph-slow 20s ease-in-out infinite; }
+
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee { animation: marquee-x 28s linear infinite; }
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--color-brand-600), var(--color-gold) 65%, var(--color-brand-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mesh-hero {
+  background:
+    radial-gradient(60% 55% at 15% 10%, color-mix(in srgb, var(--color-brand-300) 55%, transparent), transparent),
+    radial-gradient(50% 45% at 90% 0%, color-mix(in srgb, var(--color-gold) 35%, transparent), transparent),
+    radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--color-brand-500) 30%, transparent), transparent),
+    var(--color-ink);
+}
+
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-brand-200) transparent;

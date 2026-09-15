@@ -34,10 +34,8 @@ works the same way in reverse via its `VITE_ADMIN_URL`.
 
 ## Pointing at a deployed backend
 
-Same mechanism as the client app: `src/api.js` reads `VITE_API_URL` and
-prefixes every request with it in production (falls back to relative
-paths + the dev proxy locally). Set it as a Railway Variable on this
-service and rebuild.
+Same as the client: `src/api.js` uses `VITE_API_URL` or falls back to
+`http://51.21.60.78:8000`. Local Vite proxies `/api` and `/files` there.
 
 ## Structure
 

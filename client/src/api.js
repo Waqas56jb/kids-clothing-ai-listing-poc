@@ -1,8 +1,8 @@
 import { supabase } from './lib/supabase'
 
-const PRODUCTION_API = 'https://kids-clothing-ai-listing-poc-production.up.railway.app'
+const PRODUCTION_API = 'http://51.21.60.78:8000'
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || (import.meta.env.PROD ? PRODUCTION_API : '')
+const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || PRODUCTION_API
 
 async function getAccessToken() {
   let { data } = await supabase.auth.getSession()

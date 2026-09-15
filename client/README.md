@@ -32,14 +32,10 @@ admin console instead.
 
 ## Pointing at a deployed backend
 
-`src/api.js` reads `VITE_API_URL` and prefixes every request with it in a
-production build (in dev, requests stay relative and go through the Vite
-proxy above). Vite bakes this in at *build* time, not runtime, so on
-Railway it has to be set as a **Variable on the frontend service** and the
-service **rebuilt** (a plain restart won't pick up a new value) —
-`Settings → Variables → VITE_API_URL = https://<your-backend>.up.railway.app`.
-If it's ever unset, `api.js` falls back to the backend URL this project is
-currently deployed at, so the deployed app keeps working either way.
+`src/api.js` reads `VITE_API_URL` (or falls back to the Lightsail API at
+`http://51.21.60.78:8000`). Vite bakes this in at *build* time, so rebuild
+after changing it. Local `vite` also proxies `/api` and `/files` to that
+same backend.
 
 ## Structure
 

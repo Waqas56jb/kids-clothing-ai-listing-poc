@@ -19,3 +19,5 @@ runs/
 .pytest_cache/
 *.egg-info/
 *.log
+backend/.deploy/
+**/*.pem
