@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { FolderKanban } from 'lucide-react'
 import { listJobs } from '../../api'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
 import Badge from '../ui/Badge'
@@ -59,7 +60,7 @@ export default function ProjectsPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState icon="🗂️" title="No projects found" description="Nothing matches this filter yet." />
+          <EmptyState icon={FolderKanban} title="No projects found" description="Nothing matches this filter yet." />
         ) : (
           <Table>
             <Thead>
@@ -73,7 +74,7 @@ export default function ProjectsPage() {
               {filtered.map((job) => (
                 <Tr key={job.job_id} className="cursor-pointer">
                   <Td>
-                    <Link to={`/admin/projects/${job.job_id}`} className="font-semibold text-brand-700 hover:underline">
+                    <Link to={`/projects/${job.job_id}`} className="font-semibold text-brand-700 hover:underline">
                       {job.job_id}
                     </Link>
                   </Td>

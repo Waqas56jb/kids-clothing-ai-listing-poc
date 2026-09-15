@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, Shirt } from 'lucide-react'
 import { fileUrl, getJob } from '../../api'
 import { toneForCondition, toneForMatch } from '../../lib/garment'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
@@ -37,8 +38,8 @@ export default function GarmentManagementPage() {
 
   return (
     <div>
-      <Link to={`/admin/projects/${jobId}`} className="text-sm font-medium text-brand-600 hover:underline">
-        ← Project {jobId}
+      <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Project {jobId}
       </Link>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Garment Management</h1>
@@ -54,7 +55,7 @@ export default function GarmentManagementPage() {
 
       {filtered.length === 0 ? (
         <div className="mt-6">
-          <EmptyState icon="👕" title="No garments" description="No garments match this filter." />
+          <EmptyState icon={Shirt} title="No garments" description="No garments match this filter." />
         </div>
       ) : (
         <div className="mt-5">
@@ -72,7 +73,7 @@ export default function GarmentManagementPage() {
               {filtered.map((garment) => (
                 <Tr key={garment.id}>
                   <Td>
-                    <Link to={`/admin/garments/${jobId}/${garment.detection_ids[0]}`}>
+                    <Link to={`/garments/${jobId}/${garment.detection_ids[0]}`}>
                       <div className="h-11 w-11 overflow-hidden rounded-lg bg-surface shadow-soft">
                         <img
                           src={fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)}
@@ -84,7 +85,7 @@ export default function GarmentManagementPage() {
                   </Td>
                   <Td>
                     <Link
-                      to={`/admin/garments/${jobId}/${garment.detection_ids[0]}`}
+                      to={`/garments/${jobId}/${garment.detection_ids[0]}`}
                       className="font-semibold capitalize text-brand-700 hover:underline"
                     >
                       {garment.category.replace(/_/g, ' ')}

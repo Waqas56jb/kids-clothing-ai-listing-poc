@@ -42,7 +42,7 @@ export default function GroupsPage() {
 
   if (garments === null) {
     return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-10 space-y-4">
+      <div className="max-w-4xl space-y-4">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -51,9 +51,9 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
-      <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to results
+    <div className="max-w-4xl">
+      <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Back to project
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Suggested Groups</h1>
@@ -61,7 +61,7 @@ export default function GroupsPage() {
       </div>
       <p className="mt-1 text-sm text-slate-500">
         AI groups items by size and category as bundle suggestions. Remove an item, split a group, or merge two
-        groups below — final grouping logic and persistence land with backend integration.
+        groups below.
       </p>
 
       <div className="mt-8 space-y-4">

@@ -83,7 +83,7 @@ export default function ListingPreviewPage() {
 
   if (garments === null) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-10 space-y-4">
+      <div className="max-w-3xl space-y-4">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -91,17 +91,16 @@ export default function ListingPreviewPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to results
+    <div className="max-w-3xl">
+      <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Back to project
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Listing Preview</h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Listing Review</h1>
         <Badge tone="info">Preview</Badge>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Draft listing copy templated from AI-extracted attributes only — nothing invented. Edit freely, then
-        approve. Real AI-generated copy and publishing land with backend integration.
+        Draft listing copy templated from AI-extracted attributes only. Edit and approve on the seller's behalf if needed.
       </p>
 
       <div className="mt-8 space-y-4">

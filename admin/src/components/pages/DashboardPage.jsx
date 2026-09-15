@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AlertTriangle, Camera, FolderKanban, Package, Search, Settings2, Shirt, Tag } from 'lucide-react'
 import { listJobs } from '../../api'
 import StatCard from '../ui/StatCard'
 import Card from '../ui/Card'
@@ -8,7 +9,7 @@ import Skeleton from '../ui/Skeleton'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
 
-export default function AdminDashboardPage() {
+export default function DashboardPage() {
   const [jobs, setJobs] = useState(null)
 
   useEffect(() => {
@@ -29,18 +30,21 @@ export default function AdminDashboardPage() {
       <p className="mt-1 text-sm text-slate-500">Live snapshot of processing across all seller projects.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total projects" value={jobs?.length ?? '—'} icon="🗂️" tone="brand" />
-        <StatCard label="Photos processed" value={totalPhotos} icon="📸" tone="brand" />
-        <StatCard label="Garments detected" value={totalGarments} icon="👕" tone="emerald" />
-        <StatCard label="Currently processing" value={processing.length} icon="⚙️" tone="amber" />
+        <StatCard label="Total projects" value={jobs?.length ?? '—'} icon={FolderKanban} tone="brand" />
+        <StatCard label="Photos processed" value={totalPhotos} icon={Camera} tone="brand" />
+        <StatCard label="Garments detected" value={totalGarments} icon={Shirt} tone="emerald" />
+        <StatCard label="Currently processing" value={processing.length} icon={Settings2} tone="amber" />
       </div>
 
       {errored.length > 0 && (
-        <div className="mt-6 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
-          ⚠️ {errored.length} project{errored.length > 1 ? 's' : ''} failed processing.{' '}
-          <Link to="/admin/jobs" className="font-semibold underline">
-            View jobs monitor →
-          </Link>
+        <div className="mt-6 flex items-start gap-2.5 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {errored.length} project{errored.length > 1 ? 's' : ''} failed processing.{' '}
+            <Link to="/jobs" className="font-semibold underline">
+              View jobs monitor →
+            </Link>
+          </span>
         </div>
       )}
 
@@ -48,7 +52,7 @@ export default function AdminDashboardPage() {
         <div>
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-bold text-slate-800">Recent projects</h2>
-            <Link to="/admin/projects" className="text-sm font-semibold text-brand-600 hover:underline">
+            <Link to="/projects" className="text-sm font-semibold text-brand-600 hover:underline">
               View all →
             </Link>
           </div>
@@ -59,7 +63,7 @@ export default function AdminDashboardPage() {
               <Card className="p-6 text-center text-sm text-slate-400">No projects yet.</Card>
             ) : (
               jobs.slice(0, 6).map((job) => (
-                <Link key={job.job_id} to={`/admin/projects/${job.job_id}`}>
+                <Link key={job.job_id} to={`/projects/${job.job_id}`}>
                   <Card hover className="flex items-center justify-between gap-3 p-3.5">
                     <span className="truncate text-sm font-semibold text-slate-700">
                       {job.job_id.slice(0, 10)} · {job.image_count} photos
@@ -76,14 +80,16 @@ export default function AdminDashboardPage() {
           <h2 className="font-display text-lg font-bold text-slate-800">Quick links</h2>
           <div className="mt-3 grid grid-cols-2 gap-3">
             {[
-              { to: '/admin/review-queue', label: 'Review Queue', icon: '🔍' },
-              { to: '/admin/jobs', label: 'Jobs Monitor', icon: '⚙️' },
-              { to: '/admin/groups', label: 'Groups', icon: '📦' },
-              { to: '/admin/listings', label: 'Listings', icon: '🏷️' },
+              { to: '/review-queue', label: 'Review Queue', icon: Search },
+              { to: '/jobs', label: 'Jobs Monitor', icon: Settings2 },
+              { to: '/groups', label: 'Groups', icon: Package },
+              { to: '/listings', label: 'Listings', icon: Tag },
             ].map((link) => (
               <Link key={link.to} to={link.to}>
                 <Card hover className="flex flex-col items-center gap-2 p-5 text-center">
-                  <span className="text-2xl">{link.icon}</span>
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                    <link.icon className="h-5 w-5" strokeWidth={1.75} />
+                  </span>
                   <span className="text-sm font-semibold text-slate-700">{link.label}</span>
                 </Card>
               </Link>

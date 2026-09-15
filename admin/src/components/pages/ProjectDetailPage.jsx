@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getJob } from '../../api'
+import { AlertTriangle, ArrowLeft, Camera, Link2, Package, ScanSearch, Tag } from 'lucide-react'
+import { fileUrl, getJob } from '../../api'
 import { toneForCondition, toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
 import Card from '../ui/Card'
 import Skeleton from '../ui/Skeleton'
 import StatCard from '../ui/StatCard'
-import { fileUrl } from '../../api'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
 
@@ -45,8 +45,8 @@ export default function ProjectDetailPage() {
 
   return (
     <div>
-      <Link to="/admin/projects" className="text-sm font-medium text-brand-600 hover:underline">
-        ← All projects
+      <Link to="/projects" className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> All projects
       </Link>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -69,39 +69,40 @@ export default function ProjectDetailPage() {
       )}
 
       {job.status === 'error' && (
-        <Card className="mt-5 border-rose-100 bg-rose-50 p-5 text-sm text-rose-700">
-          Processing failed: {job.error}
+        <Card className="mt-5 flex items-start gap-2.5 border-rose-100 bg-rose-50 p-5 text-sm text-rose-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Processing failed: {job.error}</span>
         </Card>
       )}
 
       {job.status === 'done' && (
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Photos" value={job.image_count} icon="📸" tone="brand" />
-            <StatCard label="Detections" value={job.result.total_detections} icon="🔎" tone="brand" />
-            <StatCard label="Garments" value={garments.length} icon="👕" tone="emerald" />
-            <StatCard label="Needs review" value={needsReview} icon="⚠️" tone="amber" />
+            <StatCard label="Photos" value={job.image_count} icon={Camera} tone="brand" />
+            <StatCard label="Detections" value={job.result.total_detections} icon={ScanSearch} tone="brand" />
+            <StatCard label="Garments" value={garments.length} icon={Package} tone="emerald" />
+            <StatCard label="Needs review" value={needsReview} icon={AlertTriangle} tone="amber" />
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
-            <Link to={`/admin/garments/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
-              📋 Garment management
+            <Link to={`/garments/${jobId}`} className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
+              <ScanSearch className="h-4 w-4" /> Garment management
             </Link>
-            <Link to={`/admin/matching/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
-              🔗 Matching review
+            <Link to={`/matching/${jobId}`} className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
+              <Link2 className="h-4 w-4" /> Matching review
             </Link>
-            <Link to={`/admin/groups/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
-              📦 Groups
+            <Link to={`/groups/${jobId}`} className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
+              <Package className="h-4 w-4" /> Groups
             </Link>
-            <Link to={`/admin/listings/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
-              🏷️ Listings
+            <Link to={`/listings/${jobId}`} className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft hover:bg-brand-50">
+              <Tag className="h-4 w-4" /> Listings
             </Link>
           </div>
 
           <h2 className="mt-8 font-display text-lg font-bold text-slate-800">Detected garments</h2>
           <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {garments.map((garment) => (
-              <Link key={garment.id} to={`/admin/garments/${jobId}/${garment.detection_ids[0]}`}>
+              <Link key={garment.id} to={`/garments/${jobId}/${garment.detection_ids[0]}`}>
                 <Card hover className="overflow-hidden">
                   <div className="aspect-square bg-surface">
                     <img

@@ -1,11 +1,12 @@
-# Client — Seller + Admin frontend
+# Client — Seller frontend (Milestone 2)
 
 A routed, multi-page React app in a blue/white design system covering the
-full Seller (Milestone 2) and Admin (Milestone 3) specs: upload, live AI
-progress, garment results/detail/editing, same-garment matching review,
-suggested groups/packages, and listing preview — plus an admin console for
-projects, garment/detection review, jobs monitoring, and a cross-project
-review queue.
+Seller spec: dashboard, multi-photo upload, live AI progress, garment
+results/detail/editing, same-garment matching review, suggested
+groups/packages, and listing preview. The admin console is a separate app
+— see `../admin`.
+
+Icons via `lucide-react`, notifications via `react-toastify`.
 
 Requires the backend API to be running (see `../backend/README.md`, "Web
 API" section) — this app is just the UI on top of it.
@@ -20,6 +21,14 @@ npm run dev
 Opens on `http://localhost:5173`. The dev server proxies `/api` and
 `/files` to the backend at `http://127.0.0.1:8000` (see `vite.config.js`) —
 start the backend first.
+
+## Linking to the admin app
+
+The "Admin →" link reads `VITE_ADMIN_URL`, falling back to
+`http://localhost:5174` in dev. Once `../admin` is deployed, set
+`VITE_ADMIN_URL` as a Railway Variable on *this* service (and rebuild —
+Vite bakes it in at build time) so the link points at the real deployed
+admin console instead.
 
 ## Pointing at a deployed backend
 
@@ -37,31 +46,28 @@ currently deployed at, so the deployed app keeps working either way.
 ```
 src/
   components/
-    SellerLayout.jsx, AdminLayout.jsx   # topbar / sidebar chrome per persona
-    ui/            shared primitives: Button, Card, Badge, Input, Table,
-                   Modal, Skeleton, EmptyState, Tabs, Toast, StatCard
-    seller/        Dashboard, Upload, Processing, Results, GarmentDetail,
-                   MatchingReview, Groups, ListingPreview
-    admin/         AdminDashboard, Projects, ProjectDetail,
-                   GarmentManagement, DetectionReview, JobsMonitor,
-                   ReviewQueue, AdminGroups/AdminListings (project pickers)
+    SellerLayout.jsx   topbar chrome
+    ui/                shared primitives: Button, Card, Badge, Input,
+                       Skeleton, EmptyState, StatCard
+    seller/            Dashboard, Upload, Processing, Results, GarmentCard,
+                       GarmentDetail, MatchingReview, Groups, ListingPreview
   lib/
-    garment.js     shared badge/tone logic for condition & match status
-    groups.js      client-side grouping heuristic (size + category)
-    listing.js     templated listing title/description from real attributes
-  api.js           fetch wrappers: createJob, getJob, listJobs, fileUrl
+    garment.js         shared badge/tone logic for condition & match status
+    groups.js          client-side grouping heuristic (size + category)
+    listing.js         templated listing title/description from real attributes
+  api.js               fetch wrappers: createJob, getJob, listJobs, fileUrl
 ```
 
-`App.jsx` is the route table (`react-router-dom`) — Seller routes render
-inside `SellerLayout`, Admin routes inside `AdminLayout` at `/admin/*`.
+`src/components/ui/*` and `src/lib/*` are duplicated (not shared via a
+package) in `../admin` too, since the two apps are separate deployable
+units — see `../admin/README.md`.
 
 ## What's real vs. preview
 
-Upload → processing → results → garment detail → matching review, and
-every admin page, all read real data from the pipeline via `GET /api/jobs`
-and `GET /api/jobs/{id}`. Three things have no backend concept yet and are
-local-state-only previews, clearly labeled **Preview** in the UI: suggested
-groups/packages, listing copy, and manual match confirm/reject decisions
+Upload → processing → results → garment detail → matching review all read
+real data from the pipeline via `GET /api/jobs` and `GET /api/jobs/{id}`.
+Suggested groups/packages and listing copy have no backend concept yet and
+are local-state-only previews, clearly labeled **Preview** in the UI
 (`lib/groups.js` / `lib/listing.js` isolate this logic so swapping in real
 endpoints later is a clean boundary, not a rewrite). Garment detail edits
 also stay local for the same reason — no `PATCH` endpoint exists yet.

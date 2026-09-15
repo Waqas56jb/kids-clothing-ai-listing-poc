@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { CheckCircle2, FolderOpen, ImageOff, Plus, Settings2, Shirt, ShoppingBasket, Sparkles } from 'lucide-react'
 import { listJobs } from '../../api'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -36,20 +37,25 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Welcome back 👋</h1>
-          <p className="mt-1 text-sm text-slate-500">Here's what's happening with your listings.</p>
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+            <Sparkles className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div>
+            <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Welcome back</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Here's what's happening with your listings.</p>
+          </div>
         </div>
         <Button size="lg" onClick={() => navigate('/upload')}>
-          + New Upload Batch
+          <Plus className="h-4 w-4" /> New Upload Batch
         </Button>
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total batches" value={jobs?.length ?? '—'} icon="🗂️" tone="brand" />
-        <StatCard label="Garments found" value={totalGarments} icon="👕" tone="emerald" />
-        <StatCard label="Processing now" value={processing} icon="⚙️" tone="amber" />
-        <StatCard label="Completed" value={done.length} icon="✅" tone="emerald" />
+        <StatCard label="Total batches" value={jobs?.length ?? '—'} icon={FolderOpen} tone="brand" />
+        <StatCard label="Garments found" value={totalGarments} icon={Shirt} tone="emerald" />
+        <StatCard label="Processing now" value={processing} icon={Settings2} tone="amber" />
+        <StatCard label="Completed" value={done.length} icon={CheckCircle2} tone="emerald" />
       </div>
 
       <h2 className="mt-10 font-display text-lg font-bold text-slate-800">Recent batches</h2>
@@ -63,7 +69,7 @@ export default function DashboardPage() {
       ) : jobs.length === 0 ? (
         <div className="mt-4">
           <EmptyState
-            icon="📸"
+            icon={ImageOff}
             title="No batches yet"
             description="Upload your first batch of clothing photos to see AI results here."
             action={<Button onClick={() => navigate('/upload')}>Upload photos</Button>}
@@ -81,8 +87,8 @@ export default function DashboardPage() {
               <Link to={job.status === 'done' ? `/results/${job.job_id}` : `/processing/${job.job_id}`}>
                 <Card hover className="flex items-center justify-between gap-4 p-4 sm:p-5">
                   <div className="flex min-w-0 items-center gap-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-lg">
-                      🧺
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                      <ShoppingBasket className="h-5 w-5" strokeWidth={1.75} />
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-800">

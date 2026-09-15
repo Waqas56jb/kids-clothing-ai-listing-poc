@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { fileUrl, getJob } from '../../api'
 import { toneForCondition, toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
-import { useToast } from '../ui/Toast'
-
-const CONFIDENCE_FIELDS = ['category', 'brand', 'size', 'color', 'condition', 'gender']
 
 function ConfidenceBar({ value = 0 }) {
   const pct = Math.round(value * 100)
@@ -31,7 +30,6 @@ function ConfidenceBar({ value = 0 }) {
 export default function GarmentDetailPage() {
   const { jobId, detectionId } = useParams()
   const navigate = useNavigate()
-  const toast = useToast()
   const [job, setJob] = useState(null)
   const [garment, setGarment] = useState(null)
   const [form, setForm] = useState(null)
@@ -63,7 +61,7 @@ export default function GarmentDetailPage() {
   }
 
   function handleSave() {
-    toast('Saved locally — connecting this to the backend is planned for the next milestone.', 'success')
+    toast.success('Saved locally — connecting this to the backend is planned for the next milestone.')
   }
 
   const field = (key) => (
@@ -83,8 +81,8 @@ export default function GarmentDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
-      <Link to={`/results/${jobId}`} className="text-sm font-medium text-brand-600 hover:underline">
-        ← Back to results
+      <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Back to results
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -100,8 +98,11 @@ export default function GarmentDetailPage() {
       </div>
 
       {garment.defects && (
-        <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
-          ⚠️ AI flagged possible damage — please verify against the physical item: <strong>{garment.defects}</strong>
+        <div className="mt-4 flex gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
+          <span>
+            AI flagged possible damage — please verify against the physical item: <strong>{garment.defects}</strong>
+          </span>
         </div>
       )}
 

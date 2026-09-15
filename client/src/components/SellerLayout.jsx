@@ -1,9 +1,15 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Baby, LayoutDashboard, UploadCloud } from 'lucide-react'
+
+// The admin console is now a separate app/deployment (see ../admin). In
+// dev that's the second Vite server on :5174; in production it needs its
+// own real URL set via VITE_ADMIN_URL once that service is deployed.
+const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : '/admin')
 
 const NAV_LINKS = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/upload', label: 'New Upload' },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/upload', label: 'New Upload', icon: UploadCloud },
 ]
 
 export default function SellerLayout() {
@@ -13,8 +19,8 @@ export default function SellerLayout() {
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-lg text-white shadow-soft">
-              🧸
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-soft">
+              <Baby className="h-5 w-5" strokeWidth={2} />
             </span>
             <span className="hidden whitespace-nowrap font-display text-lg font-bold text-slate-800 sm:inline">
               Kids AI Listing
@@ -28,16 +34,17 @@ export default function SellerLayout() {
                 to={link.to}
                 end={link.end}
                 className={({ isActive }) =>
-                  `whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${
+                  `flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3 sm:text-sm ${
                     isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`
                 }
               >
-                {link.label}
+                <link.icon className="h-4 w-4" strokeWidth={2} />
+                <span className="hidden sm:inline">{link.label}</span>
               </NavLink>
             ))}
             <a
-              href="/admin"
+              href={ADMIN_URL}
               className="ml-2 hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600 sm:inline-block"
             >
               Admin →

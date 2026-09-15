@@ -1,17 +1,33 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import {
+  ArrowLeft,
+  FolderKanban,
+  LayoutDashboard,
+  Menu,
+  Package,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Tag,
+} from 'lucide-react'
+
+// The seller app is a separate app/deployment (see ../client). In dev
+// that's the first Vite server on :5173; in production it needs its own
+// real URL set via VITE_CLIENT_URL once that service is deployed.
+const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : '/')
 
 const NAV_LINKS = [
-  { to: '/admin', label: 'Dashboard', icon: '📊', end: true },
-  { to: '/admin/projects', label: 'Projects', icon: '🗂️' },
-  { to: '/admin/jobs', label: 'Processing Jobs', icon: '⚙️' },
-  { to: '/admin/review-queue', label: 'Review Queue', icon: '🔍' },
-  { to: '/admin/groups', label: 'Groups & Packages', icon: '📦' },
-  { to: '/admin/listings', label: 'Listings', icon: '🏷️' },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/jobs', label: 'Processing Jobs', icon: Settings2 },
+  { to: '/review-queue', label: 'Review Queue', icon: Search },
+  { to: '/groups', label: 'Groups & Packages', icon: Package },
+  { to: '/listings', label: 'Listings', icon: Tag },
 ]
 
-function NavItem({ to, label, icon, end, onClick }) {
+function NavItem({ to, label, icon: Icon, end, onClick }) {
   return (
     <NavLink
       to={to}
@@ -19,11 +35,11 @@ function NavItem({ to, label, icon, end, onClick }) {
       onClick={onClick}
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
-          isActive ? 'bg-brand-600 text-white shadow-soft' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+          isActive ? 'bg-white text-brand-700 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white'
         }`
       }
     >
-      <span className="text-base">{icon}</span>
+      <Icon className="h-4 w-4" strokeWidth={2} />
       {label}
     </NavLink>
   )
@@ -33,12 +49,12 @@ function SidebarContent({ onNavigate }) {
   return (
     <>
       <div className="flex items-center gap-2 px-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-lg text-white shadow-soft">
-          🛡️
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white shadow-soft">
+          <ShieldCheck className="h-5 w-5" strokeWidth={2} />
         </span>
         <div>
-          <p className="font-display text-base font-bold text-slate-800">Admin Console</p>
-          <p className="text-xs text-slate-400">Kids AI Listing</p>
+          <p className="font-display text-base font-bold text-white">Admin Console</p>
+          <p className="text-xs text-brand-200">Kids AI Listing</p>
         </div>
       </div>
       <nav className="mt-8 flex flex-col gap-1">
@@ -47,10 +63,10 @@ function SidebarContent({ onNavigate }) {
         ))}
       </nav>
       <a
-        href="/"
-        className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        href={CLIENT_URL}
+        className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-brand-200 transition-colors hover:bg-white/10 hover:text-white"
       >
-        ← Seller view
+        <ArrowLeft className="h-4 w-4" /> Seller view
       </a>
     </>
   )
@@ -62,12 +78,11 @@ export default function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-surface">
-      {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-1 border-r border-slate-100 bg-white p-5 lg:flex">
+      {/* Desktop sidebar -- rich blue gradient to read as a distinct "console", not just another light page */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-1 bg-gradient-to-b from-brand-700 to-brand-900 p-5 lg:flex">
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar (slide-over) */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -76,16 +91,13 @@ export default function AdminLayout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <motion.div
-              className="absolute inset-0 bg-slate-900/40"
-              onClick={() => setMobileOpen(false)}
-            />
+            <motion.div className="absolute inset-0 bg-slate-900/40" onClick={() => setMobileOpen(false)} />
             <motion.aside
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative flex h-full w-72 flex-col gap-1 bg-white p-5 shadow-elevated"
+              className="relative flex h-full w-72 flex-col gap-1 bg-gradient-to-b from-brand-700 to-brand-900 p-5 shadow-elevated"
             >
               <SidebarContent onNavigate={() => setMobileOpen(false)} />
             </motion.aside>
@@ -101,7 +113,7 @@ export default function AdminLayout() {
             className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
             aria-label="Open menu"
           >
-            ☰
+            <Menu className="h-5 w-5" />
           </button>
           <span className="font-display text-base font-bold text-slate-800">Admin Console</span>
         </header>

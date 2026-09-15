@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { fileUrl, getJob } from '../../api'
-import { toneForCondition, toneForMatch } from '../../lib/garment'
+import { toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
 import Skeleton from '../ui/Skeleton'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
@@ -36,8 +37,8 @@ export default function DetectionReviewPage() {
 
   return (
     <div>
-      <Link to={`/admin/garments/${jobId}`} className="text-sm font-medium text-brand-600 hover:underline">
-        ← Garment management
+      <Link to={`/garments/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Garment management
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-bold capitalize text-slate-800 sm:text-3xl">
@@ -61,8 +62,11 @@ export default function DetectionReviewPage() {
           </div>
 
           {garment.defects && (
-            <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
-              ⚠️ Flagged defect: <strong>{garment.defects}</strong>
+            <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Flagged defect: <strong>{garment.defects}</strong>
+              </span>
             </div>
           )}
         </div>

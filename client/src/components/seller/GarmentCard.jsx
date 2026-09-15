@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AlertTriangle, ImageIcon } from 'lucide-react'
 import { fileUrl } from '../../api'
 import Badge from '../ui/Badge'
 import { conditionLabel, toneForCondition, toneForMatch } from '../../lib/garment'
@@ -32,8 +33,8 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
         <div className="relative aspect-square bg-surface">
           <img src={imageSrc} alt={garment.category} className="h-full w-full object-contain p-4" loading="lazy" />
           {garment.images.length > 1 && (
-            <span className="absolute right-2 top-2 rounded-full bg-slate-900/60 px-2 py-0.5 text-[11px] font-medium text-white">
-              {garment.images.length} photos
+            <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-slate-900/60 px-2 py-0.5 text-[11px] font-medium text-white">
+              <ImageIcon className="h-3 w-3" /> {garment.images.length}
             </span>
           )}
         </div>
@@ -58,8 +59,9 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
               {conditionLabel(garment)}
             </Badge>
             {garment.defects && (
-              <p className="text-xs text-amber-700">
-                ⚠️ AI flagged possible damage — please verify: {garment.defects}
+              <p className="flex items-start gap-1.5 text-xs text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>AI flagged possible damage — please verify: {garment.defects}</span>
               </p>
             )}
           </div>

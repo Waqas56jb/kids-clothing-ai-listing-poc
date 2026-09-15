@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Settings2 } from 'lucide-react'
 import { listJobs } from '../../api'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
 import Badge from '../ui/Badge'
@@ -48,7 +49,7 @@ export default function JobsMonitorPage() {
             ))}
           </div>
         ) : jobs.length === 0 ? (
-          <EmptyState icon="⚙️" title="No jobs yet" description="Jobs will appear here as sellers upload photos." />
+          <EmptyState icon={Settings2} title="No jobs yet" description="Jobs will appear here as sellers upload photos." />
         ) : (
           <Table>
             <Thead>
@@ -62,7 +63,7 @@ export default function JobsMonitorPage() {
               {jobs.map((job) => (
                 <Tr key={job.job_id}>
                   <Td>
-                    <Link to={`/admin/projects/${job.job_id}`} className="font-semibold text-brand-700 hover:underline">
+                    <Link to={`/projects/${job.job_id}`} className="font-semibold text-brand-700 hover:underline">
                       {job.job_id}
                     </Link>
                   </Td>

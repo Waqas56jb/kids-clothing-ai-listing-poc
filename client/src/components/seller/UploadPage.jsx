@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
+import { ImagePlus, Loader2, UploadCloud, X } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { createJob } from '../../api'
-import { useToast } from '../ui/Toast'
 import Button from '../ui/Button'
 
 export default function UploadPage() {
@@ -11,7 +12,6 @@ export default function UploadPage() {
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
   const navigate = useNavigate()
-  const toast = useToast()
 
   // Revoke any still-live preview URLs on unmount only -- re-running this on
   // every `items` change would revoke URLs still referenced by the *next*
@@ -41,15 +41,17 @@ export default function UploadPage() {
       const { job_id } = await createJob(items.map((item) => item.file))
       navigate(`/processing/${job_id}`, { state: { photoCount: items.length } })
     } catch {
-      toast('Could not upload those photos. Please try again.', 'error')
+      toast.error('Could not upload those photos. Please try again.')
       setSubmitting(false)
     }
   }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-10 sm:py-16">
-      <span className="text-4xl">🧸</span>
-      <h1 className="mt-3 text-center font-display text-3xl font-bold text-slate-800 sm:text-4xl">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+        <UploadCloud className="h-7 w-7" strokeWidth={1.75} />
+      </span>
+      <h1 className="mt-4 text-center font-display text-3xl font-bold text-slate-800 sm:text-4xl">
         New Upload Batch
       </h1>
       <p className="mt-2 max-w-lg text-center text-sm text-slate-500 sm:text-base">
@@ -72,8 +74,8 @@ export default function UploadPage() {
           addFiles(event.dataTransfer.files)
         }}
       >
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-2xl">
-          📸
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+          <ImagePlus className="h-6 w-6" strokeWidth={1.75} />
         </div>
         <p className="mt-4 font-medium text-slate-700">Drag &amp; drop photos here</p>
         <p className="text-sm text-slate-400">or</p>
@@ -117,24 +119,19 @@ export default function UploadPage() {
                     type="button"
                     onClick={() => removeItem(item.id)}
                     aria-label="Remove photo"
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 text-xs text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
                   >
-                    ✕
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </Reorder.Item>
               ))}
             </AnimatePresence>
           </Reorder.Group>
 
-          <Button
-            size="lg"
-            className="mt-8 w-full max-w-xs"
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
+          <Button size="lg" className="mt-8 w-full max-w-xs" onClick={handleSubmit} disabled={submitting}>
             {submitting ? (
               <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Uploading…
               </>
             ) : (

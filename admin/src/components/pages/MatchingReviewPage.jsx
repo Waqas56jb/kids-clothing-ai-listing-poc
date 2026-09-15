@@ -68,7 +68,7 @@ export default function MatchingReviewPage() {
 
   if (garments === null) {
     return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-10 space-y-4">
+      <div className="max-w-4xl space-y-4">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
@@ -87,14 +87,13 @@ export default function MatchingReviewPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
-      <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to results
+    <div className="max-w-4xl">
+      <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+        <ArrowLeft className="h-4 w-4" /> Back to project
       </Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-slate-800 sm:text-3xl">Same-Garment Matching</h1>
       <p className="mt-1 text-sm text-slate-500">
-        AI groups detections it believes are the same physical item across your photos. Review each match below —
-        this decision stays on this device for now and will sync to the backend in a future update.
+        Manually confirm or reject each AI matching decision for this project.
       </p>
 
       <div className="mt-8 space-y-4">

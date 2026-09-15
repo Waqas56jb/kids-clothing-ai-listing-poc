@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import { X } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children, footer }) {
   return (
@@ -19,7 +20,17 @@ export default function Modal({ open, onClose, title, children, footer }) {
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             onClick={(event) => event.stopPropagation()}
           >
-            {title && <h3 className="font-display text-lg font-bold text-slate-800">{title}</h3>}
+            <div className="flex items-start justify-between gap-4">
+              {title && <h3 className="font-display text-lg font-bold text-slate-800">{title}</h3>}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             <div className="mt-3">{children}</div>
             {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
           </motion.div>

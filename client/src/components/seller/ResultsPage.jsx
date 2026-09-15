@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AlertTriangle, Info, Link2, Package, PackageX, Tag } from 'lucide-react'
 import { getJob } from '../../api'
 import GarmentCard from './GarmentCard'
 import Button from '../ui/Button'
@@ -76,14 +77,23 @@ export default function ResultsPage() {
 
       {garments.length > 0 && (
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link to={`/matching/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50">
-            🔗 Review matching
+          <Link
+            to={`/matching/${jobId}`}
+            className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
+          >
+            <Link2 className="h-4 w-4" /> Review matching
           </Link>
-          <Link to={`/groups/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50">
-            📦 Suggested groups
+          <Link
+            to={`/groups/${jobId}`}
+            className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
+          >
+            <Package className="h-4 w-4" /> Suggested groups
           </Link>
-          <Link to={`/listings/${jobId}`} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50">
-            🏷️ Listing preview
+          <Link
+            to={`/listings/${jobId}`}
+            className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
+          >
+            <Tag className="h-4 w-4" /> Listing preview
           </Link>
         </div>
       )}
@@ -99,25 +109,31 @@ export default function ResultsPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"
+          className="mt-5 flex gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"
         >
-          ⚠️ {flaggedForDamage} item{flaggedForDamage > 1 ? 's' : ''} {flaggedForDamage > 1 ? 'have' : 'has'} possible
-          damage flagged by AI — this is a suggestion, not a verdict. Please check each one against the actual
-          garment before publishing.
+          <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} />
+          <span>
+            {flaggedForDamage} item{flaggedForDamage > 1 ? 's' : ''} {flaggedForDamage > 1 ? 'have' : 'has'} possible
+            damage flagged by AI — this is a suggestion, not a verdict. Please check each one against the actual
+            garment before publishing.
+          </span>
         </motion.div>
       )}
 
       {result.notes?.length > 0 && (
         <div className="mt-3 space-y-1 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
           {result.notes.map((note, index) => (
-            <p key={index}>ℹ️ {note}</p>
+            <p key={index} className="flex items-start gap-2">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              {note}
+            </p>
           ))}
         </div>
       )}
 
       {garments.length === 0 ? (
         <EmptyState
-          icon="🤷"
+          icon={PackageX}
           title="No garments detected"
           description="AI couldn't confidently detect any garments in these photos."
           action={<Button onClick={() => navigate('/upload')}>Try another batch</Button>}

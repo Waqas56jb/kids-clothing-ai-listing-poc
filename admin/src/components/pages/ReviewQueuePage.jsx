@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { CheckCircle2 } from 'lucide-react'
 import { fileUrl, getJob, listJobs } from '../../api'
 import { needsAnyReview, toneForCondition, toneForMatch } from '../../lib/garment'
 import Badge from '../ui/Badge'
@@ -48,12 +49,12 @@ export default function ReviewQueuePage() {
 
       {items.length === 0 ? (
         <div className="mt-6">
-          <EmptyState icon="✅" title="Nothing needs review" description="All garments are high-confidence right now." />
+          <EmptyState icon={CheckCircle2} title="Nothing needs review" description="All garments are high-confidence right now." />
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map(({ garment, jobId }) => (
-            <Link key={`${jobId}-${garment.id}`} to={`/admin/garments/${jobId}/${garment.detection_ids[0]}`}>
+            <Link key={`${jobId}-${garment.id}`} to={`/garments/${jobId}/${garment.detection_ids[0]}`}>
               <Card hover className="overflow-hidden">
                 <div className="aspect-square bg-surface">
                   <img
