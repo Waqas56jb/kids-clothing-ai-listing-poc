@@ -6,6 +6,7 @@ import {
   Banknote,
   FolderKanban,
   LayoutDashboard,
+  LogOut,
   Menu,
   Package,
   Search,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   Tag,
 } from 'lucide-react'
+import { useAuth } from '../auth/AuthContext'
 
 // The seller app is a separate app/deployment (see ../client). In dev
 // that's the first Vite server on :5173; in production it needs its own
@@ -48,6 +50,9 @@ function NavItem({ to, label, icon: Icon, end, onClick }) {
 }
 
 function SidebarContent({ onNavigate }) {
+  const { profile, user, signOut } = useAuth()
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Admin'
+
   return (
     <>
       <div className="flex items-center gap-2 px-2">
@@ -64,12 +69,22 @@ function SidebarContent({ onNavigate }) {
           <NavItem key={link.to} {...link} onClick={onNavigate} />
         ))}
       </nav>
-      <a
-        href={CLIENT_URL}
-        className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-brand-200 transition-colors hover:bg-white/10 hover:text-white"
-      >
-        <ArrowLeft className="h-4 w-4" /> Seller view
-      </a>
+      <div className="mt-auto space-y-1">
+        <p className="truncate px-3.5 text-xs font-medium text-brand-200">{displayName}</p>
+        <a
+          href={CLIENT_URL}
+          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-brand-200 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" /> Seller view
+        </a>
+        <button
+          type="button"
+          onClick={signOut}
+          className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-brand-200 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <LogOut className="h-4 w-4" /> Log out
+        </button>
+      </div>
     </>
   )
 }

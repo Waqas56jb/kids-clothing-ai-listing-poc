@@ -1,3 +1,5 @@
+import { supabase } from './lib/supabase'
+
 // In local dev, relative paths go through the Vite proxy (see
 // vite.config.js) straight to the local backend. In a production build,
 // there's no such proxy -- the deployed client and backend are two
@@ -10,25 +12,41 @@ const API_BASE =
   import.meta.env.VITE_API_URL ??
   (import.meta.env.PROD ? 'https://kids-clothing-ai-listing-poc-production.up.railway.app' : '')
 
+async function authHeaders(extra = {}) {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
+async function parse(res, fallback) {
+  if (res.status === 401) throw new Error('Please sign in again')
+  if (!res.ok) throw new Error(fallback)
+  return res.json()
+}
+
 export async function createJob(files) {
   const formData = new FormData()
   for (const file of files) formData.append('images', file)
 
-  const res = await fetch(`${API_BASE}/api/jobs`, { method: 'POST', body: formData })
-  if (!res.ok) throw new Error('Upload failed')
-  return res.json()
+  const res = await fetch(`${API_BASE}/api/jobs`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: formData,
+  })
+  return parse(res, 'Upload failed')
 }
 
 export async function getJob(jobId) {
-  const res = await fetch(`${API_BASE}/api/jobs/${jobId}`)
-  if (!res.ok) throw new Error('Failed to fetch job status')
-  return res.json()
+  const res = await fetch(`${API_BASE}/api/jobs/${jobId}`, { headers: await authHeaders() })
+  return parse(res, 'Failed to fetch job status')
 }
 
 export async function listJobs() {
-  const res = await fetch(`${API_BASE}/api/jobs`)
-  if (!res.ok) throw new Error('Failed to fetch jobs')
-  return res.json()
+  const res = await fetch(`${API_BASE}/api/jobs`, { headers: await authHeaders() })
+  return parse(res, 'Failed to fetch jobs')
 }
 
 export function fileUrl(jobId, relativePath) {

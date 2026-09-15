@@ -18,7 +18,10 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 
 copy .env.example .env
-# then edit .env and set OPENAI_API_KEY
+# then edit .env and set OPENAI_API_KEY plus the Supabase values
+
+python scripts/apply_schema.py   # once: create profiles + jobs tables
+python scripts/seed_users.py     # once: demo seller and admin logins
 ```
 
 `requirements.txt` installs a CPU build of `paddlepaddle` automatically as a
@@ -108,8 +111,9 @@ libglib2.0-0` service variable in the dashboard instead.
 ```
 backend/
     ai_engine/       # the pipeline itself (detection, segmentation, ocr, ...)
-    app/             # FastAPI layer: main.py (routes), jobs.py (background job store)
-    scripts/         # CLI entry points
+    app/             # FastAPI layer: auth, db, jobs, routes
+    db/              # Postgres schema for profiles + jobs
+    scripts/         # CLI: models, pipeline, schema apply, user seed
     tests/           # matching-logic unit tests
     sample_images/   # small public test set
     models_cache/    # downloaded model weights (gitignored)

@@ -3,6 +3,8 @@
 __pycache__/
 *.pyc
 .env
+.env.local
+.env.*.local
 models_cache/
 outputs/
 uploads/

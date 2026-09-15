@@ -45,13 +45,16 @@ currently deployed at, so the deployed app keeps working either way.
 
 ```
 src/
+  auth/                session, profile, protected routes
   components/
     SellerLayout.jsx   topbar chrome
     ui/                shared primitives: Button, Card, Badge, Input,
                        Skeleton, EmptyState, StatCard
-    seller/            Dashboard, Upload, Processing, Results, GarmentCard,
-                       GarmentDetail, MatchingReview, Groups, ListingPreview
+    seller/            Login, Dashboard, Upload, Processing, Results,
+                       GarmentCard, GarmentDetail, MatchingReview, Groups,
+                       ListingPreview
   lib/
+    supabase.js        seller Supabase client
     garment.js         shared badge/tone logic for condition & match status
     groups.js          client-side grouping heuristic (size + category)
     listing.js         templated listing title/description from real attributes

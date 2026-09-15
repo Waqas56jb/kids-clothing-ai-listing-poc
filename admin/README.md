@@ -43,14 +43,17 @@ service and rebuild.
 
 ```
 src/
+  auth/               session, profile, admin-only protected routes
   components/
     AdminLayout.jsx   sidebar + topbar chrome
     ui/               shared primitives: Button, Card, Badge, Input, Table,
                       Modal, Skeleton, EmptyState, Tabs, StatCard
-    pages/            Dashboard, Projects, ProjectDetail, GarmentManagement,
-                      DetectionReview, MatchingReview, Groups(+picker),
-                      JobsMonitor, ReviewQueue, ListingPreview(+picker)
+    pages/            Login, Dashboard, Projects, ProjectDetail,
+                      GarmentManagement, DetectionReview, MatchingReview,
+                      Groups(+picker), JobsMonitor, ReviewQueue,
+                      ListingPreview(+picker), Pricing
   lib/
+    supabase.js       admin Supabase client
     garment.js        shared badge/tone logic for condition & match status
     groups.js         client-side grouping heuristic (size + category)
     listing.js        templated listing title/description from real attributes

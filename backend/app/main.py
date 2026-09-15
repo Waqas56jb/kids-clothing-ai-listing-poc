@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import jobs
+from app.auth import require_user
 
 app = FastAPI(title="Kids Clothing AI Listing API")
 
@@ -30,12 +33,20 @@ async def health():
     return {"status": "ok", "service": "kids-clothing-ai-listing-api"}
 
 
+@app.get("/api/me")
+async def me(user: Annotated[dict, Depends(require_user)]):
+    return user
+
+
 @app.post("/api/jobs")
-async def create_job(images: list[UploadFile] = File(...)):
+async def create_job(
+    images: list[UploadFile] = File(...),
+    user: dict = Depends(require_user),
+):
     if not images:
         raise HTTPException(status_code=400, detail="No images uploaded")
     files = [(image.filename or f"image_{i}.jpg", await image.read()) for i, image in enumerate(images)]
-    job = jobs.create_job(files)
+    job = jobs.create_job(files, user_id=user["id"])
     return {"job_id": job.id}
 
 
@@ -50,18 +61,22 @@ def _job_summary(job: jobs.Job) -> dict:
         "created_at": job.created_at,
         "image_count": job.image_count,
         "garment_count": len(job.result.garments) if job.result else None,
+        "user_id": job.user_id,
     }
 
 
 @app.get("/api/jobs")
-async def list_jobs():
-    return [_job_summary(job) for job in jobs.list_jobs()]
+async def list_jobs(user: Annotated[dict, Depends(require_user)]):
+    is_admin = user["role"] == "admin"
+    return [_job_summary(job) for job in jobs.list_jobs(user_id=user["id"], is_admin=is_admin)]
 
 
 @app.get("/api/jobs/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str, user: Annotated[dict, Depends(require_user)]):
     job = jobs.get_job(job_id)
     if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if user["role"] != "admin" and job.user_id != user["id"]:
         raise HTTPException(status_code=404, detail="Job not found")
     return {
         **_job_summary(job),

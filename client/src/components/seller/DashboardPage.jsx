@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CheckCircle2, FolderOpen, ImageOff, Plus, Settings2, Shirt, ShoppingBasket, Sparkles } from 'lucide-react'
 import { listJobs } from '../../api'
+import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
 import Badge from '../ui/Badge'
@@ -23,6 +24,7 @@ function timeAgo(unixSeconds) {
 export default function DashboardPage() {
   const [jobs, setJobs] = useState(null)
   const navigate = useNavigate()
+  const { profile } = useAuth()
 
   useEffect(() => {
     listJobs()
@@ -42,7 +44,9 @@ export default function DashboardPage() {
             <Sparkles className="h-5 w-5" strokeWidth={1.75} />
           </span>
           <div>
-            <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Welcome back</h1>
+            <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">
+              Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}
+            </h1>
             <p className="mt-0.5 text-sm text-slate-500">Here's what's happening with your listings.</p>
           </div>
         </div>
