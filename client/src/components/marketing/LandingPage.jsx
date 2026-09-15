@@ -65,7 +65,7 @@ export default function LandingPage() {
   return (
     <div className="overflow-x-clip">
       {/* Nav */}
-      <header className="sticky top-0 z-40 safe-top">
+      <header className="fixed inset-x-0 top-0 z-40 safe-top">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2 rounded-full bg-ink/80 py-1.5 pl-2 pr-2 text-white shadow-elevated backdrop-blur-xl sm:pr-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
@@ -139,7 +139,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="relative isolate mt-[-64px] overflow-hidden pb-24 pt-32 text-white sm:pb-32 sm:pt-40">
+      <section className="relative isolate overflow-hidden pb-24 pt-32 text-white sm:pb-32 sm:pt-40">
         <div className="mesh-hero absolute inset-0 -z-20" />
         <div className="bg-grain pointer-events-none absolute inset-0 -z-10 opacity-30" />
         <div className="pointer-events-none absolute -left-24 top-10 -z-10 h-72 w-72 bg-brand-400/30 blur-3xl animate-blob" />

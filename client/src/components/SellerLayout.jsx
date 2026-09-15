@@ -17,7 +17,7 @@ import { useAuth } from '../auth/AuthContext'
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : '/admin')
 
 const NAV_LINKS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/upload', label: 'New Upload', icon: UploadCloud },
 ]
 

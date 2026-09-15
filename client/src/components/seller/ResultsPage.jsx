@@ -79,7 +79,7 @@ export default function ResultsPage() {
           description={error}
           action={
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => navigate('/')}>Go to dashboard</Button>
+              <Button onClick={() => navigate('/dashboard')}>Go to dashboard</Button>
               <Button variant="secondary" onClick={() => navigate('/upload')}>
                 New upload
               </Button>

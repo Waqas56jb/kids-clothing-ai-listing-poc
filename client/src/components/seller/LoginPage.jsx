@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Baby, Eye, EyeOff, Images, ScanSearch, Shirt, Sparkles } from 'lucide-react'
+import { ArrowLeft, Baby, Eye, EyeOff, Images, ScanSearch, Shirt, Sparkles } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
@@ -15,7 +15,7 @@ const FEATURES = [
 export default function LoginPage() {
   const { session, loading, configured, signIn, signUp } = useAuth()
   const location = useLocation()
-  const [mode, setMode] = useState('login')
+  const [mode, setMode] = useState(() => (new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : 'login'))
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   if (!loading && session) {
-    return <Navigate to={location.state?.from?.pathname || '/'} replace />
+    return <Navigate to={location.state?.from?.pathname || '/dashboard'} replace />
   }
 
   async function handleSubmit(event) {
@@ -95,6 +95,13 @@ export default function LoginPage() {
           transition={{ duration: 0.35 }}
           className="w-full max-w-md"
         >
+          <Link
+            to="/"
+            className="mb-6 flex w-fit items-center gap-1.5 text-sm font-medium text-slate-400 transition hover:text-brand-700"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to home
+          </Link>
+
           <div className="mb-6 flex items-center gap-2 lg:hidden">
             <Sparkles className="h-5 w-5 text-brand-600" />
             <p className="text-sm font-semibold text-slate-600">Seller sign in</p>

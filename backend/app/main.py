@@ -32,7 +32,10 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
         "http://127.0.0.1:5176",
+        "https://appealing-embrace-production-8bc0.up.railway.app",
+        "https://bountiful-prosperity-production-e9b2.up.railway.app",
     ],
+    allow_origin_regex=r"https://.*\.(up\.railway\.app|sslip\.io)",
     allow_methods=["*"],
     allow_headers=["*"],
 )
