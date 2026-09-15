@@ -19,6 +19,17 @@ Opens on `http://localhost:5173`. The dev server proxies `/api` and
 `/files` to the backend at `http://127.0.0.1:8000` (see `vite.config.js`) —
 start the backend first.
 
+## Pointing at a deployed backend
+
+`src/api.js` reads `VITE_API_URL` and prefixes every request with it in a
+production build (in dev, requests stay relative and go through the Vite
+proxy above). Vite bakes this in at *build* time, not runtime, so on
+Railway it has to be set as a **Variable on the frontend service** and the
+service **rebuilt** (a plain restart won't pick up a new value) —
+`Settings → Variables → VITE_API_URL = https://<your-backend>.up.railway.app`.
+If it's ever unset, `api.js` falls back to the backend URL this project is
+currently deployed at, so the deployed app keeps working either way.
+
 ## How it works
 
 `src/App.jsx` is a small screen state machine:
