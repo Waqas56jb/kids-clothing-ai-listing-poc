@@ -1,6 +1,6 @@
 import { supabase } from './lib/supabase'
 
-const PRODUCTION_API = 'http://51.21.60.78:8000'
+const PRODUCTION_API = 'https://51.21.60.78.sslip.io'
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || PRODUCTION_API
 

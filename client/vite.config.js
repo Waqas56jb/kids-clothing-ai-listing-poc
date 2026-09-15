@@ -7,8 +7,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'http://51.21.60.78:8000',
-      '/files': 'http://51.21.60.78:8000',
+      '/api': 'https://51.21.60.78.sslip.io',
+      '/files': 'https://51.21.60.78.sslip.io',
     },
   },
 })

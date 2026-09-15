@@ -33,7 +33,7 @@ admin console instead.
 ## Pointing at a deployed backend
 
 `src/api.js` reads `VITE_API_URL` (or falls back to the Lightsail API at
-`http://51.21.60.78:8000`). Vite bakes this in at *build* time, so rebuild
+`https://51.21.60.78.sslip.io`). Vite bakes this in at *build* time, so rebuild
 after changing it. Local `vite` also proxies `/api` and `/files` to that
 same backend.
 

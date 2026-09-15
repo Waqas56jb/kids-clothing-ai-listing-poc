@@ -35,7 +35,7 @@ works the same way in reverse via its `VITE_ADMIN_URL`.
 ## Pointing at a deployed backend
 
 Same as the client: `src/api.js` uses `VITE_API_URL` or falls back to
-`http://51.21.60.78:8000`. Local Vite proxies `/api` and `/files` there.
+`https://51.21.60.78.sslip.io`. Local Vite proxies `/api` and `/files` there.
 
 ## Structure
 
