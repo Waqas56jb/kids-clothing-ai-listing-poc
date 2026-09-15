@@ -47,7 +47,7 @@ def resolve_user(authorization: str | None) -> dict[str, Any] | None:
 
     profile = None
     try:
-        profile = db.fetch_profile(auth_user["id"])
+        profile = db.fetch_profile(auth_user["id"], access_token=token)
     except RuntimeError:
         profile = None
 
@@ -56,6 +56,7 @@ def resolve_user(authorization: str | None) -> dict[str, Any] | None:
         "email": auth_user.get("email") or (profile or {}).get("email"),
         "full_name": (profile or {}).get("full_name"),
         "role": (profile or {}).get("role") or "seller",
+        "access_token": token,
     }
 
 

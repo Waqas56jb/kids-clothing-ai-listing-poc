@@ -185,11 +185,6 @@ export default function LoginPage() {
               {mode === 'login' ? 'Create a seller account' : 'Sign in instead'}
             </button>
           </p>
-
-          <p className="mt-8 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 shadow-soft">
-            Demo seller: <span className="font-semibold text-slate-700">seller@kidsailisting.com</span> /{' '}
-            <span className="font-semibold text-slate-700">SellerDemo123!</span>
-          </p>
         </motion.div>
       </section>
     </div>

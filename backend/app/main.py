@@ -35,7 +35,7 @@ async def health():
 
 @app.get("/api/me")
 async def me(user: Annotated[dict, Depends(require_user)]):
-    return user
+    return {key: value for key, value in user.items() if key != "access_token"}
 
 
 @app.post("/api/jobs")
@@ -46,7 +46,7 @@ async def create_job(
     if not images:
         raise HTTPException(status_code=400, detail="No images uploaded")
     files = [(image.filename or f"image_{i}.jpg", await image.read()) for i, image in enumerate(images)]
-    job = jobs.create_job(files, user_id=user["id"])
+    job = jobs.create_job(files, user_id=user["id"], access_token=user.get("access_token"))
     return {"job_id": job.id}
 
 
@@ -68,12 +68,12 @@ def _job_summary(job: jobs.Job) -> dict:
 @app.get("/api/jobs")
 async def list_jobs(user: Annotated[dict, Depends(require_user)]):
     is_admin = user["role"] == "admin"
-    return [_job_summary(job) for job in jobs.list_jobs(user_id=user["id"], is_admin=is_admin)]
+    return [_job_summary(job) for job in jobs.list_jobs(user_id=user["id"], is_admin=is_admin, access_token=user.get("access_token"))]
 
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str, user: Annotated[dict, Depends(require_user)]):
-    job = jobs.get_job(job_id)
+    job = jobs.get_job(job_id, access_token=user.get("access_token"))
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if user["role"] != "admin" and job.user_id != user["id"]:

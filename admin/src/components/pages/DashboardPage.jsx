@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import { AlertTriangle, Camera, FolderKanban, Package, Search, Settings2, Shirt, Tag } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { listJobs } from '../../api'
 import { statusSeries, summarizeJobs, timeAgo, trendSeries } from '../../lib/jobsStats'
 import StatCard from '../ui/StatCard'
@@ -50,7 +51,11 @@ export default function DashboardPage() {
   useEffect(() => {
     listJobs()
       .then(setJobs)
-      .catch(() => setJobs([]))
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.message || 'Could not load jobs from the server')
+        setJobs([])
+      })
   }, [])
 
   if (jobs === null) {

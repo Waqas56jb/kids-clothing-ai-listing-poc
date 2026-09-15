@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { CheckCircle2, FolderOpen, ImageOff, Plus, Settings2, Shirt, ShoppingBasket, Sparkles } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { listJobs } from '../../api'
 import { summarizeJobs, timeAgo, trendSeries } from '../../lib/jobsStats'
 import { useAuth } from '../../auth/AuthContext'
@@ -24,7 +25,11 @@ export default function DashboardPage() {
   useEffect(() => {
     listJobs()
       .then(setJobs)
-      .catch(() => setJobs([]))
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.message || 'Could not load jobs from the server')
+        setJobs([])
+      })
   }, [])
 
   const { done, processing, totalGarments } = summarizeJobs(jobs ?? [])

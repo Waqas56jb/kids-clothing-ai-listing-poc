@@ -89,6 +89,10 @@ def upsert_profile(user_id: str, user: dict) -> None:
     )
 
 
+def set_password(user_id: str, password: str) -> None:
+    request("PUT", f"/auth/v1/admin/users/{user_id}", {"password": password, "email_confirm": True})
+
+
 def create_user(user: dict) -> str:
     try:
         created = request(
@@ -110,6 +114,7 @@ def create_user(user: dict) -> str:
         if not existing or not existing.get("id"):
             raise
         print(f"Already exists {user['email']} ({existing['id']})")
+        set_password(existing["id"], user["password"])
         upsert_profile(existing["id"], user)
         return existing["id"]
 

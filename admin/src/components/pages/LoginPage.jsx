@@ -83,7 +83,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 shadow-soft outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-                placeholder="admin@kidsailisting.com"
+                placeholder="you@email.com"
                 autoComplete="email"
               />
             </label>
@@ -119,11 +119,6 @@ export default function LoginPage() {
               {submitting ? 'Signing in…' : 'Enter console'}
             </Button>
           </form>
-
-          <p className="mt-6 rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
-            Demo admin: <span className="font-semibold text-slate-700">admin@kidsailisting.com</span> /{' '}
-            <span className="font-semibold text-slate-700">AdminDemo123!</span>
-          </p>
         </div>
 
         <p className="mt-6 text-center text-sm text-brand-100">

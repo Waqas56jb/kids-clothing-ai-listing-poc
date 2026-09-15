@@ -31,6 +31,7 @@ class Job:
     created_at: float = field(default_factory=time.time)
     image_count: int = 0
     user_id: str | None = None
+    access_token: str | None = field(default=None, repr=False)
 
 
 _jobs: dict[str, Job] = {}
@@ -56,10 +57,9 @@ def _persist(job: Job) -> None:
     if not db.enabled():
         return
     try:
-        db.upsert_job(_job_payload(job))
-    except RuntimeError:
-        # Keep serving from memory if the database blip is transient.
-        pass
+        db.upsert_job(_job_payload(job), access_token=job.access_token)
+    except RuntimeError as exc:
+        print(f"[jobs] failed to persist {job.id}: {exc}")
 
 
 def _job_from_row(row: dict) -> Job:
@@ -80,7 +80,7 @@ def _job_from_row(row: dict) -> Job:
     )
 
 
-def create_job(files: list[tuple[str, bytes]], user_id: str | None = None) -> Job:
+def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, access_token: str | None = None) -> Job:
     """Save the uploaded images and kick off background processing.
 
     Runs on a plain `threading.Thread` rather than FastAPI's
@@ -90,7 +90,7 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None) -> Jo
     requests (like progress polling) are being served.
     """
     job_id = uuid.uuid4().hex[:12]
-    job = Job(id=job_id, image_count=len(files), user_id=user_id)
+    job = Job(id=job_id, image_count=len(files), user_id=user_id, access_token=access_token)
     _jobs[job_id] = job
     _persist(job)
 
@@ -105,14 +105,14 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None) -> Jo
     return job
 
 
-def get_job(job_id: str) -> Job | None:
+def get_job(job_id: str, access_token: str | None = None) -> Job | None:
     cached = _jobs.get(job_id)
     if cached is not None:
         return cached
     if not db.enabled():
         return None
     try:
-        row = db.fetch_job(job_id)
+        row = db.fetch_job(job_id, access_token=access_token)
     except RuntimeError:
         return None
     if row is None:
@@ -122,7 +122,7 @@ def get_job(job_id: str) -> Job | None:
     return job
 
 
-def list_jobs(user_id: str | None = None, is_admin: bool = False) -> list[Job]:
+def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: str | None = None) -> list[Job]:
     """Jobs newest first. Admins see every seller; sellers see their own.
 
     Live in-memory progress overlays anything already stored in Postgres so
@@ -130,15 +130,15 @@ def list_jobs(user_id: str | None = None, is_admin: bool = False) -> list[Job]:
     """
     if db.enabled():
         try:
-            rows = db.list_jobs(user_id=None if is_admin else user_id)
+            rows = db.list_jobs(user_id=None if is_admin else user_id, access_token=access_token)
             jobs = [_job_from_row(row) for row in rows]
             merged: dict[str, Job] = {job.id: job for job in jobs}
             for job in _jobs.values():
                 if is_admin or job.user_id == user_id:
                     merged[job.id] = job
             return sorted(merged.values(), key=lambda job: job.created_at, reverse=True)
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            print(f"[jobs] failed to list jobs: {exc}")
 
     jobs = list(_jobs.values())
     if not is_admin:
