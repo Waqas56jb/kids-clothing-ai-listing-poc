@@ -5,9 +5,11 @@ import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob } from '../../api'
 import { toneForCondition, toneForMatch } from '../../lib/garment'
+import { approvePricing, getGarmentPricing, updatePricing } from '../../lib/pricing'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
+import PricingCard from '../pricing/PricingCard'
 
 function ConfidenceBar({ value = 0 }) {
   const pct = Math.round(value * 100)
@@ -33,6 +35,7 @@ export default function GarmentDetailPage() {
   const [job, setJob] = useState(null)
   const [garment, setGarment] = useState(null)
   const [form, setForm] = useState(null)
+  const [pricing, setPricing] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -41,7 +44,12 @@ export default function GarmentDetailPage() {
       setJob(data)
       const found = data.result?.garments.find((g) => g.detection_ids.includes(detectionId))
       setGarment(found)
-      if (found) setForm({ ...found })
+      if (found) {
+        setForm({ ...found })
+        getGarmentPricing(jobId, found).then((p) => {
+          if (!cancelled) setPricing(p)
+        })
+      }
     })
     return () => {
       cancelled = true
@@ -62,6 +70,18 @@ export default function GarmentDetailPage() {
 
   function handleSave() {
     toast.success('Saved locally — connecting this to the backend is planned for the next milestone.')
+  }
+
+  async function handleApprovePricing() {
+    const updated = await approvePricing(pricing.id, { actor: 'Seller' })
+    setPricing(updated)
+    toast.success('AI price accepted as the final price.')
+  }
+
+  async function handleSavePricing(payload) {
+    const updated = await updatePricing(pricing.id, { ...payload, actor: 'Seller' })
+    setPricing(updated)
+    toast.success('Custom price saved.')
   }
 
   const field = (key) => (
@@ -140,6 +160,12 @@ export default function GarmentDetailPage() {
           </div>
         </div>
       </div>
+
+      {pricing && (
+        <div className="mt-6">
+          <PricingCard pricing={pricing} onApprove={handleApprovePricing} onSave={handleSavePricing} />
+        </div>
+      )}
     </div>
   )
 }

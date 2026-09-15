@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ImageIcon } from 'lucide-react'
+import { AlertTriangle, ImageIcon, Tag } from 'lucide-react'
 import { fileUrl } from '../../api'
 import Badge from '../ui/Badge'
 import { conditionLabel, toneForCondition, toneForMatch } from '../../lib/garment'
+import { getGarmentPricing, PRICING_STATUS } from '../../lib/pricing'
+import PricingStatusBadge from '../pricing/PricingStatus'
 
 function Field({ label, value }) {
   return (
@@ -18,6 +21,19 @@ function Field({ label, value }) {
 
 export default function GarmentCard({ garment, jobId, index = 0 }) {
   const imageSrc = fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)
+  const [pricing, setPricing] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    getGarmentPricing(jobId, garment).then((p) => {
+      if (active) setPricing(p)
+    })
+    return () => {
+      active = false
+    }
+  }, [jobId, garment])
+
+  const isFinal = pricing?.status === PRICING_STATUS.APPROVED || pricing?.status === PRICING_STATUS.MANUALLY_ADJUSTED
 
   return (
     <motion.div
@@ -63,6 +79,19 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>AI flagged possible damage — please verify: {garment.defects}</span>
               </p>
+            )}
+            {pricing && (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                  <Tag className="h-3.5 w-3.5 text-brand-500" />
+                  {isFinal ? (
+                    <>{pricing.finalPrice} {pricing.currency}</>
+                  ) : (
+                    <>~{pricing.recommendedPrice} {pricing.currency} <span className="font-normal text-slate-400">(AI)</span></>
+                  )}
+                </span>
+                <PricingStatusBadge status={pricing.status} />
+              </div>
             )}
           </div>
         </div>

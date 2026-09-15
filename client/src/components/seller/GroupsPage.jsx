@@ -5,10 +5,45 @@ import { ArrowLeft, Package, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob } from '../../api'
 import { computeInitialGroups, mergeGroups, removeFromGroup, splitGroup } from '../../lib/groups'
+import { approvePricing, getGroupPricing, updatePricing } from '../../lib/pricing'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
+import BundlePricingCard from '../pricing/BundlePricingCard'
+
+function GroupPricing({ jobId, group }) {
+  const [pricing, setPricing] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    getGroupPricing(jobId, group).then((p) => {
+      if (active) setPricing(p)
+    })
+    return () => {
+      active = false
+    }
+  }, [jobId, group])
+
+  if (!pricing) return null
+
+  return (
+    <div className="mt-4">
+      <BundlePricingCard
+        pricing={pricing}
+        itemCount={group.garmentIds.length}
+        onApprove={async () => {
+          setPricing(await approvePricing(pricing.id, { actor: 'Seller' }))
+          toast.success('Bundle price accepted as the final price.')
+        }}
+        onSave={async (payload) => {
+          setPricing(await updatePricing(pricing.id, { ...payload, actor: 'Seller' }))
+          toast.success('Custom bundle price saved.')
+        }}
+      />
+    </div>
+  )
+}
 
 function Thumb({ jobId, garment }) {
   return (
@@ -134,6 +169,8 @@ export default function GroupsPage() {
                     )
                   })}
                 </div>
+
+                <GroupPricing jobId={jobId} group={group} />
               </motion.div>
             ))
           )}

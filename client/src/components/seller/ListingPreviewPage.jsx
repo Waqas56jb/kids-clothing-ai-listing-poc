@@ -5,15 +5,30 @@ import { ArrowLeft, RotateCcw, Tag } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob } from '../../api'
 import { generateDescription, generateTitle } from '../../lib/listing'
+import { getGarmentPricing, PRICING_STATUS } from '../../lib/pricing'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
+import PricingStatusBadge from '../pricing/PricingStatus'
 
 function ListingCard({ jobId, garment, index }) {
   const [title, setTitle] = useState(() => generateTitle(garment))
   const [description, setDescription] = useState(() => generateDescription(garment))
   const [approved, setApproved] = useState(false)
+  const [pricing, setPricing] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    getGarmentPricing(jobId, garment).then((p) => {
+      if (active) setPricing(p)
+    })
+    return () => {
+      active = false
+    }
+  }, [jobId, garment])
+
+  const isFinal = pricing?.status === PRICING_STATUS.APPROVED || pricing?.status === PRICING_STATUS.MANUALLY_ADJUSTED
 
   return (
     <motion.div
@@ -46,6 +61,23 @@ function ListingCard({ jobId, garment, index }) {
           rows={4}
           className="w-full resize-none rounded-xl border border-slate-200 bg-surface/50 p-3 text-sm text-slate-600 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100"
         />
+        {pricing && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl bg-surface/60 px-3 py-2 text-sm">
+            <span className="text-slate-500">
+              AI Suggested Price:{' '}
+              <span className="font-semibold text-slate-700">
+                {pricing.recommendedPrice} {pricing.currency}
+              </span>
+            </span>
+            <span className="text-slate-500">
+              Final Price:{' '}
+              <span className="font-semibold text-slate-700">
+                {isFinal ? `${pricing.finalPrice} ${pricing.currency}` : 'Not set'}
+              </span>
+            </span>
+            <PricingStatusBadge status={pricing.status} />
+          </div>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"

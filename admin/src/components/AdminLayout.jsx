@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
+  Banknote,
   FolderKanban,
   LayoutDashboard,
   Menu,
@@ -25,6 +26,7 @@ const NAV_LINKS = [
   { to: '/review-queue', label: 'Review Queue', icon: Search },
   { to: '/groups', label: 'Groups & Packages', icon: Package },
   { to: '/listings', label: 'Listings', icon: Tag },
+  { to: '/pricing', label: 'Pricing Engine', icon: Banknote },
 ]
 
 function NavItem({ to, label, icon: Icon, end, onClick }) {

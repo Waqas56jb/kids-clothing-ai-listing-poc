@@ -13,6 +13,8 @@ import JobsMonitorPage from './components/pages/JobsMonitorPage'
 import ReviewQueuePage from './components/pages/ReviewQueuePage'
 import ListingsPickerPage from './components/pages/ListingsPickerPage'
 import ListingPreviewPage from './components/pages/ListingPreviewPage'
+import PricingEnginePage from './components/pages/PricingEnginePage'
+import PricingDetailPage from './components/pages/PricingDetailPage'
 
 export default function App() {
   return (
@@ -30,6 +32,9 @@ export default function App() {
         <Route path="/review-queue" element={<ReviewQueuePage />} />
         <Route path="/listings" element={<ListingsPickerPage />} />
         <Route path="/listings/:jobId" element={<ListingPreviewPage />} />
+        <Route path="/pricing" element={<PricingEnginePage />} />
+        <Route path="/pricing/garment/:jobId/:detectionId" element={<PricingDetailPage kind="garment" />} />
+        <Route path="/pricing/group/:jobId/:groupId" element={<PricingDetailPage kind="group" />} />
       </Route>
     </Routes>
   )
