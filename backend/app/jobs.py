@@ -53,21 +53,26 @@ def _job_payload(job: Job) -> dict:
     }
 
 
-def _persist(job: Job) -> None:
-    if not db.enabled():
+def _persist(job: Job, required: bool = False) -> None:
+    if not db.storage_enabled():
+        if required:
+            raise RuntimeError("Database is not configured")
         return
     try:
         db.upsert_job(_job_payload(job), access_token=job.access_token)
-    except RuntimeError as exc:
+    except Exception as exc:  # noqa: BLE001 — surface on create, log on progress
         print(f"[jobs] failed to persist {job.id}: {exc}")
+        if required:
+            raise RuntimeError(f"Could not save job to the database: {exc}") from exc
 
 
 def _job_from_row(row: dict) -> Job:
     result = None
     if row.get("result"):
         result = PipelineResult.model_validate(row["result"])
+    user_id = row.get("user_id")
     return Job(
-        id=row["id"],
+        id=str(row["id"]),
         status=row.get("status") or "queued",
         stage=row.get("stage"),
         current=int(row.get("current") or 0),
@@ -76,7 +81,7 @@ def _job_from_row(row: dict) -> Job:
         error=row.get("error"),
         created_at=db.from_iso(row.get("created_at"), time.time()),
         image_count=int(row.get("image_count") or 0),
-        user_id=row.get("user_id"),
+        user_id=str(user_id) if user_id else None,
     )
 
 
@@ -92,7 +97,11 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
     job_id = uuid.uuid4().hex[:12]
     job = Job(id=job_id, image_count=len(files), user_id=user_id, access_token=access_token)
     _jobs[job_id] = job
-    _persist(job)
+    try:
+        _persist(job, required=True)
+    except Exception:
+        _jobs.pop(job_id, None)
+        raise
 
     input_dir = UPLOAD_ROOT / job_id
     input_dir.mkdir(parents=True, exist_ok=True)
@@ -109,7 +118,7 @@ def get_job(job_id: str, access_token: str | None = None) -> Job | None:
     cached = _jobs.get(job_id)
     if cached is not None:
         return cached
-    if not db.enabled():
+    if not db.storage_enabled():
         return None
     try:
         row = db.fetch_job(job_id, access_token=access_token)
@@ -128,7 +137,7 @@ def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: 
     Live in-memory progress overlays anything already stored in Postgres so
     a refresh during processing still shows the current stage.
     """
-    if db.enabled():
+    if db.storage_enabled():
         try:
             rows = db.list_jobs(user_id=None if is_admin else user_id, access_token=access_token)
             jobs = [_job_from_row(row) for row in rows]

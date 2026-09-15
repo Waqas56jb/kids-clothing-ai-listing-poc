@@ -120,3 +120,60 @@ create policy "jobs_update"
 grant usage on schema public to authenticated, anon;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.jobs to authenticated;
+grant all on table public.jobs to service_role;
+grant all on table public.profiles to service_role;
+
+-- Backend saves jobs as the signed-in user. SECURITY DEFINER so a row is
+-- actually written even when table RLS would drop a service-key insert.
+create or replace function public.save_job(p jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id text := p->>'id';
+  v_user uuid := nullif(p->>'user_id', '')::uuid;
+begin
+  if auth.uid() is not null
+     and v_user is distinct from auth.uid()
+     and coalesce(public.current_user_role(), '') is distinct from 'admin' then
+    raise exception 'not allowed';
+  end if;
+
+  insert into public.jobs (
+    id, user_id, status, stage, current, total, error,
+    image_count, garment_count, result, created_at, updated_at
+  ) values (
+    v_id,
+    coalesce(v_user, auth.uid()),
+    coalesce(p->>'status', 'queued'),
+    p->>'stage',
+    coalesce((p->>'current')::int, 0),
+    coalesce((p->>'total')::int, 0),
+    p->>'error',
+    coalesce((p->>'image_count')::int, 0),
+    nullif(p->>'garment_count', '')::int,
+    case
+      when p->'result' is null or jsonb_typeof(p->'result') = 'null' then null
+      else p->'result'
+    end,
+    coalesce((p->>'created_at')::timestamptz, now()),
+    now()
+  )
+  on conflict (id) do update set
+    status = excluded.status,
+    stage = excluded.stage,
+    current = excluded.current,
+    total = excluded.total,
+    error = excluded.error,
+    image_count = excluded.image_count,
+    garment_count = excluded.garment_count,
+    result = excluded.result,
+    updated_at = now();
+end;
+$$;
+
+revoke all on function public.save_job(jsonb) from public;
+grant execute on function public.save_job(jsonb) to authenticated;
+grant execute on function public.save_job(jsonb) to service_role;

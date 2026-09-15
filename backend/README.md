@@ -79,14 +79,17 @@ set in the dashboard (there's no repo file for it):
 
 1. In the Railway service → **Settings → Source → Root Directory**, set it
    to `backend`.
-2. In **Settings → Variables**, add `OPENAI_API_KEY` (attribute extraction
-   silently degrades without it — see "If `OPENAI_API_KEY` is missing" in
-   the Config section above — it won't fail the build/deploy, just skip
-   that step). The other `.env.example` values all have code defaults and
-   don't need to be set unless you want to override them.
+2. In **Settings → Variables**, add the same database values as `backend/.env`
+   so local and production share one Postgres (otherwise dashboards show zeros):
+   `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+   `SUPABASE_SECRET_KEY`, `DATABASE_URL`. Attribute extraction silently
+   degrades without `OPENAI_API_KEY` — it won't fail the build/deploy, just
+   skip that step.
 3. Redeploy. Railpack will now find `requirements.txt` inside `backend/`
    and use the `startCommand` from `railway.json`
-   (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
+   (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`). On boot the API
+   applies `db/schema.sql` and jobs are written to Postgres, so an upload
+   on localhost appears on the deployed seller/admin apps (and the reverse).
 
 One thing worth knowing going in: this pipeline is genuinely heavy —
 torch, transformers, paddleocr, and several hundred MB of model weights

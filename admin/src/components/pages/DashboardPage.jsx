@@ -17,6 +17,7 @@ import {
 import { AlertTriangle, Camera, FolderKanban, Package, Search, Settings2, Shirt, Tag } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { listJobs } from '../../api'
+import { useAuth } from '../../auth/AuthContext'
 import { statusSeries, summarizeJobs, timeAgo, trendSeries } from '../../lib/jobsStats'
 import StatCard from '../ui/StatCard'
 import Card from '../ui/Card'
@@ -47,8 +48,14 @@ function ChartCard({ title, subtitle, children }) {
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState(null)
+  const { loading, session } = useAuth()
 
   useEffect(() => {
+    if (loading) return
+    if (!session) {
+      setJobs([])
+      return
+    }
     listJobs()
       .then(setJobs)
       .catch((err) => {
@@ -56,7 +63,7 @@ export default function DashboardPage() {
         toast.error(err.message || 'Could not load jobs from the server')
         setJobs([])
       })
-  }, [])
+  }, [loading, session])
 
   if (jobs === null) {
     return (

@@ -1,20 +1,41 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app import jobs
+from app import db, jobs
 from app.auth import require_user
 
-app = FastAPI(title="Kids Clothing AI Listing API")
 
-# Local dev only: the Vite dev server and this API run on different ports.
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    db.startup()
+    yield
+
+
+app = FastAPI(title="Kids Clothing AI Listing API", lifespan=lifespan)
+
+# Browser apps on Railway + local Vite. Authorization is a custom header so
+# preflight must succeed from those origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5176",
+        "https://appealing-embrace-production-8bc0.up.railway.app",
+        "https://bountiful-prosperity-production-e9b2.up.railway.app",
+    ],
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -25,12 +46,23 @@ jobs.OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(jobs.OUTPUT_ROOT)), name="files")
 
 
+def _health() -> dict:
+    database = db.ping()
+    return {
+        "status": "ok" if database.get("ok") else "degraded",
+        "service": "kids-clothing-ai-listing-api",
+        "database": database,
+    }
+
+
 @app.get("/")
 async def health():
-    # Deliberately does not touch ai_engine's models -- those load lazily on
-    # first job, so a healthy response here just confirms the API process
-    # itself booted, independent of whether/when a job has run yet.
-    return {"status": "ok", "service": "kids-clothing-ai-listing-api"}
+    return _health()
+
+
+@app.get("/api/health")
+async def api_health():
+    return _health()
 
 
 @app.get("/api/me")
@@ -46,7 +78,10 @@ async def create_job(
     if not images:
         raise HTTPException(status_code=400, detail="No images uploaded")
     files = [(image.filename or f"image_{i}.jpg", await image.read()) for i, image in enumerate(images)]
-    job = jobs.create_job(files, user_id=user["id"], access_token=user.get("access_token"))
+    try:
+        job = jobs.create_job(files, user_id=user["id"], access_token=user.get("access_token"))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"job_id": job.id}
 
 

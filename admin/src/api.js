@@ -1,27 +1,35 @@
 import { supabase } from './lib/supabase'
 
-// In local dev, relative paths go through the Vite proxy (see
-// vite.config.js) straight to the local backend. In a production build,
-// there's no such proxy -- the deployed client and backend are two
-// separate Railway services on two separate domains -- so we need the
-// backend's actual URL. `VITE_API_URL` (a Railway service variable, baked
-// in at build time) is the proper way to configure it; the literal
-// Railway URL here is just a safety-net default so the deployed app
-// still works correctly even if that variable is never set.
-const API_BASE =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.PROD ? 'https://kids-clothing-ai-listing-poc-production.up.railway.app' : '')
+const PRODUCTION_API = 'https://kids-clothing-ai-listing-poc-production.up.railway.app'
+
+const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || (import.meta.env.PROD ? PRODUCTION_API : '')
+
+async function getAccessToken() {
+  let { data } = await supabase.auth.getSession()
+  if (!data.session?.access_token) {
+    const refreshed = await supabase.auth.refreshSession()
+    data = refreshed.data
+  }
+  const token = data.session?.access_token
+  if (!token) throw new Error('Please sign in again')
+  return token
+}
 
 async function authHeaders() {
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return { Authorization: `Bearer ${await getAccessToken()}` }
 }
 
 async function parse(res, fallback) {
+  if (res.ok) return res.json()
+  let detail = fallback
+  try {
+    const body = await res.json()
+    if (typeof body?.detail === 'string') detail = body.detail
+  } catch {
+    /* keep fallback */
+  }
   if (res.status === 401) throw new Error('Please sign in again')
-  if (!res.ok) throw new Error(fallback)
-  return res.json()
+  throw new Error(detail)
 }
 
 export async function createJob(files) {

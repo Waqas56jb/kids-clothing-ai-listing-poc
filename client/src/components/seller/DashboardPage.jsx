@@ -19,10 +19,15 @@ const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error
 export default function DashboardPage() {
   const [jobs, setJobs] = useState(null)
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, loading, session } = useAuth()
   const firstName = profile?.full_name?.split(' ')[0]
 
   useEffect(() => {
+    if (loading) return
+    if (!session) {
+      setJobs([])
+      return
+    }
     listJobs()
       .then(setJobs)
       .catch((err) => {
@@ -30,7 +35,7 @@ export default function DashboardPage() {
         toast.error(err.message || 'Could not load jobs from the server')
         setJobs([])
       })
-  }, [])
+  }, [loading, session])
 
   const { done, processing, totalGarments } = summarizeJobs(jobs ?? [])
   const trend = trendSeries(jobs ?? [])
