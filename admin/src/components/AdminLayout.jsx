@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 
-const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://51.21.60.78.sslip.io')
+const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://miniplagg.com')
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },

@@ -30,10 +30,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Same-origin /api via Caddy — do not hardcode sslip (breaks EU clients / tunnels).
+  # Same-origin /api via Caddy on each host (miniplagg.com / admin.miniplagg.com).
   API_URL: ''
-  ADMIN_URL: https://51.21.60.78.sslip.io/admin
-  CLIENT_URL: https://51.21.60.78.sslip.io
+  ADMIN_URL: https://admin.miniplagg.com
+  CLIENT_URL: https://miniplagg.com
 
 jobs:
   changes:

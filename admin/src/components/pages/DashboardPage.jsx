@@ -27,7 +27,7 @@ import Skeleton from '../ui/Skeleton'
 import Loader from '../ui/Loader'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
-const asset = (path) => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, '')}`
+const asset = (path) => `/${String(path).replace(/^\//, '')}`
 
 const tooltipStyle = {
   borderRadius: 16,

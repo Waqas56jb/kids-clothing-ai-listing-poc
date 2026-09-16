@@ -1,41 +1,36 @@
-# AWS Lightsail auto-deploy
-
-Push to `main` rebuilds and updates production on Lightsail via GitHub Actions.
+# AWS Lightsail + miniplagg.com
 
 ## Live URLs
 
 | App | URL |
 |-----|-----|
-| Seller | https://51.21.60.78.sslip.io |
-| Admin | https://51.21.60.78.sslip.io/admin |
-| API | https://51.21.60.78.sslip.io/api/health |
-| Alt (nip.io) | https://51.21.60.78.nip.io |
-| Alt admin | https://51.21.60.78.nip.io/admin |
+| Seller | https://miniplagg.com |
+| Admin | https://admin.miniplagg.com |
+| API | https://miniplagg.com/api/health |
 
-Do **not** send clients `admin.51.21.60.78.sslip.io` — many EU/mobile networks time out on that hostname.
+## GoDaddy DNS (A records)
 
-If sslip/nip DNS is blocked, use the Cloudflare tunnel URL printed on the server:
+Point these to the Lightsail public IP `51.21.60.78`:
 
-```bash
-sudo grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /var/log/kids-ai-tunnel.log | tail -1
-```
+| Type | Name | Value | TTL |
+|------|------|-------|-----|
+| A | `@` | `51.21.60.78` | 600 |
+| A | `www` | `51.21.60.78` | 600 |
+| A | `admin` | `51.21.60.78` | 600 |
 
-HTTP/3 is disabled on Caddy (HTTP/1.1 + HTTP/2 only) to avoid QUIC timeouts on some carriers.
+After saving in GoDaddy, wait a few minutes for DNS, then HTTPS certificates are issued automatically by Caddy.
 
-## One-time GitHub secrets
-
-Repo → **Settings → Secrets and variables → Actions → New repository secret**:
+## GitHub Actions secrets
 
 | Secret | Value |
 |--------|--------|
 | `LIGHTSAIL_HOST` | `51.21.60.78` |
 | `LIGHTSAIL_USER` | `ubuntu` |
-| `LIGHTSAIL_SSH_KEY` | Full contents of `backend/.deploy/lightsail.pem` (including `-----BEGIN…` / `END…` lines) |
+| `LIGHTSAIL_SSH_KEY` | Full contents of `backend/.deploy/lightsail.pem` |
 
-## What runs on push
+## Demo logins
 
-- Changes under `client/` or `admin/` → build Vite apps → upload to `/var/www` → reload Caddy
-- Changes under `backend/` → rsync code → `docker build` + restart `kids-ai-api`
-- Manual run: Actions → **Deploy AWS Lightsail** → Run workflow
-
-`.env` on the server is never overwritten by CI (Postgres / S3 / JWT / OpenAI stay on the instance).
+| Role | Email | Password |
+|------|-------|----------|
+| Seller | seller@kidsailisting.com | SellerDemo123! |
+| Admin | admin@kidsailisting.com | AdminDemo123! |

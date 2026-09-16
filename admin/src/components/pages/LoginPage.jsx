@@ -5,8 +5,8 @@ import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 
-const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://51.21.60.78.sslip.io')
-const asset = (path) => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, '')}`
+const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://miniplagg.com')
+const asset = (path) => `/${String(path).replace(/^\//, '')}`
 
 const fieldClass =
   'w-full rounded-2xl border border-ink/10 bg-white/90 px-4 py-3.5 text-sm text-ink shadow-soft outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100'

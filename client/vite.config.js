@@ -7,8 +7,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'https://51.21.60.78.sslip.io',
-      '/files': 'https://51.21.60.78.sslip.io',
+      '/api': 'https://miniplagg.com',
+      '/files': 'https://miniplagg.com',
     },
   },
 })

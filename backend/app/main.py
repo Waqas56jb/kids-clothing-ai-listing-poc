@@ -33,12 +33,16 @@ app.add_middleware(
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
         "http://127.0.0.1:5176",
+        "https://miniplagg.com",
+        "https://www.miniplagg.com",
+        "https://admin.miniplagg.com",
         "https://appealing-embrace-production-8bc0.up.railway.app",
         "https://bountiful-prosperity-production-e9b2.up.railway.app",
     ],
-    allow_origin_regex=r"https://.*\.(up\.railway\.app|sslip\.io|nip\.io|trycloudflare\.com)",
+    allow_origin_regex=r"https://([a-z0-9-]+\.)?(miniplagg\.com|up\.railway\.app|sslip\.io|nip\.io|trycloudflare\.com)",
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 

@@ -1,7 +1,6 @@
 #!/bin/bash
 # Install static frontend builds under Caddy (run on the server).
-# Admin is at /admin on the seller host. HTTP/3 is disabled because some
-# EU/mobile networks (incl. Sweden carriers) hang on QUIC/Alt-Svc.
+# Primary: miniplagg.com (seller) + admin.miniplagg.com (admin)
 set -euo pipefail
 
 sudo mkdir -p /var/www/client /var/www/admin
@@ -17,9 +16,14 @@ sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
 	}
 }
 
-# sslip + nip + dash forms — pick whichever DNS works on the client network
-51.21.60.78.sslip.io, 51-21-60-78.sslip.io, 51.21.60.78.nip.io, 51-21-60-78.nip.io {
+# Seller / marketing site
+miniplagg.com, www.miniplagg.com {
 	encode gzip zstd
+
+	@www host www.miniplagg.com
+	handle @www {
+		redir https://miniplagg.com{uri} permanent
+	}
 
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8000
@@ -28,13 +32,9 @@ sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
 		reverse_proxy 127.0.0.1:8000
 	}
 
-	handle /admin {
-		redir * /admin/ permanent
-	}
-	handle_path /admin/* {
-		root * /var/www/admin
-		try_files {path} /index.html
-		file_server
+	# Old path bookmarks → admin subdomain
+	handle /admin* {
+		redir https://admin.miniplagg.com/ permanent
 	}
 
 	handle {
@@ -44,14 +44,26 @@ sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
 	}
 }
 
-# Deep admin.* hostnames — send browsers to /admin on a working host form
-admin.51.21.60.78.sslip.io, admin.51-21-60-78.sslip.io, admin-51-21-60-78.sslip.io, admin.51.21.60.78.nip.io {
+# Admin console (own subdomain + same-origin /api)
+admin.miniplagg.com {
 	encode gzip zstd
-	redir https://51.21.60.78.sslip.io/admin/ permanent
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /files/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		root * /var/www/admin
+		try_files {path} /index.html
+		file_server
+	}
 }
 
-# Plain HTTP origin for Cloudflare Tunnel (works when sslip/nip DNS is blocked)
-:8080 {
+# Legacy sslip / nip hosts → real domain
+51.21.60.78.sslip.io, 51-21-60-78.sslip.io, 51.21.60.78.nip.io, 51-21-60-78.nip.io {
 	encode gzip zstd
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8000
@@ -59,13 +71,27 @@ admin.51.21.60.78.sslip.io, admin.51-21-60-78.sslip.io, admin-51-21-60-78.sslip.
 	handle /files/* {
 		reverse_proxy 127.0.0.1:8000
 	}
-	handle /admin {
-		redir * /admin/ permanent
+	handle /admin* {
+		redir https://admin.miniplagg.com/ permanent
 	}
-	handle_path /admin/* {
-		root * /var/www/admin
-		try_files {path} /index.html
-		file_server
+	handle {
+		redir https://miniplagg.com{uri} permanent
+	}
+}
+
+admin.51.21.60.78.sslip.io, admin.51-21-60-78.sslip.io, admin-51-21-60-78.sslip.io, admin.51.21.60.78.nip.io {
+	encode gzip zstd
+	redir https://admin.miniplagg.com{uri} permanent
+}
+
+# Cloudflare tunnel HTTP origin (optional fallback)
+:8080 {
+	encode gzip zstd
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /files/* {
+		reverse_proxy 127.0.0.1:8000
 	}
 	handle {
 		root * /var/www/client
@@ -79,37 +105,10 @@ sudo caddy validate --config /etc/caddy/Caddyfile
 sudo caddy fmt --overwrite /etc/caddy/Caddyfile || true
 sudo systemctl reload caddy
 
-# Cloudflare quick tunnel — stable worldwide URL (no sslip DNS needed)
-sudo tee /etc/systemd/system/kids-ai-tunnel.service >/dev/null <<'UNIT'
-[Unit]
-Description=Kids AI Cloudflare quick tunnel
-After=network-online.target caddy.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080
-Restart=always
-RestartSec=5
-StandardOutput=append:/var/log/kids-ai-tunnel.log
-StandardError=append:/var/log/kids-ai-tunnel.log
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-if command -v cloudflared >/dev/null 2>&1; then
-  sudo touch /var/log/kids-ai-tunnel.log
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now kids-ai-tunnel.service
-  sleep 4
-  # Print latest trycloudflare URL if present
-  sudo grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /var/log/kids-ai-tunnel.log | tail -1 || true
-fi
-
-sleep 2
-curl -sfI https://51.21.60.78.sslip.io/ >/dev/null
-curl -sfI https://51.21.60.78.sslip.io/admin/ >/dev/null
-curl -sf https://51.21.60.78.sslip.io/api/health
+sleep 3
+# Health on legacy host (always resolves). Domain checks may fail until DNS propagates.
+curl -sf https://127.0.0.1:8000/api/health || curl -sf https://51.21.60.78.sslip.io/api/health || true
 echo
+curl -sfI https://miniplagg.com/ >/dev/null && echo OK_MINIPLAGG || echo WAIT_DNS_miniplagg.com
+curl -sfI https://admin.miniplagg.com/ >/dev/null && echo OK_ADMIN || echo WAIT_DNS_admin.miniplagg.com
 echo DONE_FRONTEND_DEPLOY
