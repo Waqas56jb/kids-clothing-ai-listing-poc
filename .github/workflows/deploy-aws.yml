@@ -59,7 +59,6 @@ jobs:
               - 'backend/requirements.txt'
               - 'backend/Dockerfile'
               - 'backend/.deploy/deploy_backend.sh'
-              - '.github/workflows/deploy-aws.yml'
 
   deploy-frontends:
     needs: changes
@@ -103,16 +102,22 @@ jobs:
           USER: ${{ secrets.LIGHTSAIL_USER }}
         run: |
           set -euo pipefail
-          test -n "${SSH_KEY:-}" && test -n "${HOST:-}" && test -n "${USER:-}"
+          if [ -z "${SSH_KEY:-}" ] || [ -z "${HOST:-}" ] || [ -z "${USER:-}" ]; then
+            echo "::error::Missing GitHub secrets LIGHTSAIL_SSH_KEY, LIGHTSAIL_HOST, and/or LIGHTSAIL_USER"
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/lightsail.pem
           chmod 600 ~/.ssh/lightsail.pem
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          # Ensure scripts are Unix LF even if checked out from Windows
+          sed -i 's/\r$//' backend/.deploy/deploy_frontends.sh
+          chmod +x backend/.deploy/deploy_frontends.sh
           scp -i ~/.ssh/lightsail.pem \
             client-dist.tar.gz admin-dist.tar.gz backend/.deploy/deploy_frontends.sh \
             "$USER@$HOST:/tmp/"
           ssh -i ~/.ssh/lightsail.pem "$USER@$HOST" \
-            'chmod +x /tmp/deploy_frontends.sh && sudo bash /tmp/deploy_frontends.sh'
+            'sed -i "s/\r$//" /tmp/deploy_frontends.sh && chmod +x /tmp/deploy_frontends.sh && sudo bash /tmp/deploy_frontends.sh'
 
   deploy-backend:
     needs: changes
@@ -128,26 +133,24 @@ jobs:
           USER: ${{ secrets.LIGHTSAIL_USER }}
         run: |
           set -euo pipefail
-          test -n "${SSH_KEY:-}" && test -n "${HOST:-}" && test -n "${USER:-}"
+          if [ -z "${SSH_KEY:-}" ] || [ -z "${HOST:-}" ] || [ -z "${USER:-}" ]; then
+            echo "::error::Missing GitHub secrets LIGHTSAIL_SSH_KEY, LIGHTSAIL_HOST, and/or LIGHTSAIL_USER"
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/lightsail.pem
           chmod 600 ~/.ssh/lightsail.pem
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
 
           mkdir -p /tmp/kids-ai-bundle
-          rsync -a \
-            --exclude '.env' \
-            --exclude 'models_cache/' \
-            --exclude 'uploads/' \
-            --exclude 'job_outputs/' \
-            --exclude '__pycache__/' \
-            --exclude '.deploy/' \
-            --exclude '*.pyc' \
-            backend/app backend/ai_engine backend/db backend/scripts \
+          # Prefer plain cp — rsync is not always on the runner image.
+          cp -a backend/app backend/ai_engine backend/db backend/scripts \
             backend/requirements.txt backend/Dockerfile \
             /tmp/kids-ai-bundle/
 
           tar -czf /tmp/kids-ai-bundle.tar.gz -C /tmp/kids-ai-bundle .
+          sed -i 's/\r$//' backend/.deploy/deploy_backend.sh
+          chmod +x backend/.deploy/deploy_backend.sh
           scp -i ~/.ssh/lightsail.pem \
             /tmp/kids-ai-bundle.tar.gz backend/.deploy/deploy_backend.sh \
             "$USER@$HOST:/tmp/"
@@ -156,6 +159,7 @@ jobs:
           set -euo pipefail
           sudo mkdir -p /opt/kids-ai
           sudo tar -xzf /tmp/kids-ai-bundle.tar.gz -C /opt/kids-ai
+          sed -i 's/\r$//' /tmp/deploy_backend.sh
           chmod +x /tmp/deploy_backend.sh
           sudo bash /tmp/deploy_backend.sh
           REMOTE
