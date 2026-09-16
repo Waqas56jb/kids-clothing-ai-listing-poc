@@ -7,8 +7,12 @@ Push to `main` rebuilds and updates production on Lightsail via GitHub Actions.
 | App | URL |
 |-----|-----|
 | Seller | https://51.21.60.78.sslip.io |
-| Admin | https://admin.51.21.60.78.sslip.io |
+| Admin | https://51.21.60.78.sslip.io/admin |
 | API | https://51.21.60.78.sslip.io/api/health |
+
+Admin is served under `/admin` on the seller host. Deep hostnames like
+`admin.51.21.60.78.sslip.io` often time out on mobile carrier DNS/TLS;
+those hosts redirect to `/admin` when they resolve.
 
 ## One-time GitHub secrets
 
