@@ -1,0 +1,161 @@
+name: Deploy AWS Lightsail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'admin/**'
+      - 'backend/app/**'
+      - 'backend/ai_engine/**'
+      - 'backend/db/**'
+      - 'backend/scripts/**'
+      - 'backend/requirements.txt'
+      - 'backend/Dockerfile'
+      - 'backend/.deploy/deploy_*.sh'
+      - '.github/workflows/deploy-aws.yml'
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: 'Force backend rebuild'
+        type: boolean
+        default: true
+      deploy_frontends:
+        description: 'Force frontend rebuild'
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-aws-lightsail
+  cancel-in-progress: true
+
+env:
+  API_URL: https://51.21.60.78.sslip.io
+  ADMIN_URL: https://admin.51.21.60.78.sslip.io
+  CLIENT_URL: https://51.21.60.78.sslip.io
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'client/**'
+              - 'admin/**'
+              - 'backend/.deploy/deploy_frontends.sh'
+              - '.github/workflows/deploy-aws.yml'
+            backend:
+              - 'backend/app/**'
+              - 'backend/ai_engine/**'
+              - 'backend/db/**'
+              - 'backend/scripts/**'
+              - 'backend/requirements.txt'
+              - 'backend/Dockerfile'
+              - 'backend/.deploy/deploy_backend.sh'
+              - '.github/workflows/deploy-aws.yml'
+
+  deploy-frontends:
+    needs: changes
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.deploy_frontends) || (github.event_name == 'push' && needs.changes.outputs.frontend == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            admin/package-lock.json
+
+      - name: Build seller client
+        working-directory: client
+        env:
+          VITE_API_URL: ${{ env.API_URL }}
+          VITE_ADMIN_URL: ${{ env.ADMIN_URL }}
+        run: |
+          npm ci
+          npm run build
+          tar -czf ../client-dist.tar.gz -C dist .
+
+      - name: Build admin
+        working-directory: admin
+        env:
+          VITE_API_URL: ${{ env.API_URL }}
+          VITE_CLIENT_URL: ${{ env.CLIENT_URL }}
+        run: |
+          npm ci
+          npm run build
+          tar -czf ../admin-dist.tar.gz -C dist .
+
+      - name: Upload + deploy static sites
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          USER: ${{ secrets.LIGHTSAIL_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_KEY:-}" && test -n "${HOST:-}" && test -n "${USER:-}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          scp -i ~/.ssh/lightsail.pem \
+            client-dist.tar.gz admin-dist.tar.gz backend/.deploy/deploy_frontends.sh \
+            "$USER@$HOST:/tmp/"
+          ssh -i ~/.ssh/lightsail.pem "$USER@$HOST" \
+            'chmod +x /tmp/deploy_frontends.sh && sudo bash /tmp/deploy_frontends.sh'
+
+  deploy-backend:
+    needs: changes
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.deploy_backend) || (github.event_name == 'push' && needs.changes.outputs.backend == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync backend + rebuild container
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          USER: ${{ secrets.LIGHTSAIL_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_KEY:-}" && test -n "${HOST:-}" && test -n "${USER:-}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+          mkdir -p /tmp/kids-ai-bundle
+          rsync -a \
+            --exclude '.env' \
+            --exclude 'models_cache/' \
+            --exclude 'uploads/' \
+            --exclude 'job_outputs/' \
+            --exclude '__pycache__/' \
+            --exclude '.deploy/' \
+            --exclude '*.pyc' \
+            backend/app backend/ai_engine backend/db backend/scripts \
+            backend/requirements.txt backend/Dockerfile \
+            /tmp/kids-ai-bundle/
+
+          tar -czf /tmp/kids-ai-bundle.tar.gz -C /tmp/kids-ai-bundle .
+          scp -i ~/.ssh/lightsail.pem \
+            /tmp/kids-ai-bundle.tar.gz backend/.deploy/deploy_backend.sh \
+            "$USER@$HOST:/tmp/"
+
+          ssh -i ~/.ssh/lightsail.pem "$USER@$HOST" bash <<'REMOTE'
+          set -euo pipefail
+          sudo mkdir -p /opt/kids-ai
+          sudo tar -xzf /tmp/kids-ai-bundle.tar.gz -C /opt/kids-ai
+          chmod +x /tmp/deploy_backend.sh
+          sudo bash /tmp/deploy_backend.sh
+          REMOTE
