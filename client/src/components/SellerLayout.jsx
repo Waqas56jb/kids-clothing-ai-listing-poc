@@ -135,11 +135,12 @@ export default function SellerLayout() {
   return (
     <div className="flex min-h-dvh">
       <aside
-        className={`relative sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden bg-gradient-to-b from-brand-800 via-brand-900 to-ink p-4 text-white transition-[width] duration-300 ease-out lg:flex ${
+        className={`relative sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#2a4034] via-ink to-ink p-4 text-white transition-[width] duration-300 ease-out lg:flex ${
           collapsed ? 'w-[84px]' : 'w-[272px]'
         }`}
       >
-        <div className="bg-grain pointer-events-none absolute inset-0 opacity-40" />
+        <div className="bg-grain pointer-events-none absolute inset-0 opacity-35" />
+        <div className="pointer-events-none absolute -left-10 top-24 h-40 w-40 rounded-full bg-moss/30 blur-3xl" />
         <div className="relative flex h-full flex-col">
           <SidebarBody collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
         </div>
@@ -154,7 +155,7 @@ export default function SellerLayout() {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative flex h-full w-[min(18rem,86vw)] flex-col overflow-y-auto bg-gradient-to-b from-brand-800 to-ink p-5 text-white shadow-elevated"
+              className="relative flex h-full w-[min(18rem,86vw)] flex-col overflow-y-auto bg-gradient-to-b from-[#2a4034] to-ink p-5 text-white shadow-elevated"
             >
               <button
                 type="button"

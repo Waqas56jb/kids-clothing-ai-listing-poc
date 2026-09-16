@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Fraunces", "Times New Roman", ui-serif, serif;
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-display: "Cormorant Garamond", "Times New Roman", ui-serif, serif;
+  --font-sans: "Sora", ui-sans-serif, sans-serif;
 
   --color-brand-50: #eef4ff;
   --color-brand-100: #d9e6ff;
@@ -15,10 +15,12 @@
   --color-brand-800: #1b357f;
   --color-brand-900: #162a5c;
 
-  --color-ink: #14181f;
-  --color-sand: #f3efe6;
-  --color-gold: #b0892e;
-  --color-surface: #f4f0e8;
+  --color-ink: #12151a;
+  --color-sand: #efe9df;
+  --color-gold: #9a7b3c;
+  --color-surface: #f2ece3;
+  --color-moss: #3d5c4a;
+  --color-moss-soft: #d8e4dc;
 
   --shadow-soft: 0 1px 2px rgb(20 24 31 / 0.04), 0 8px 24px rgb(20 24 31 / 0.05);
   --shadow-elevated: 0 12px 40px -12px rgb(20 24 31 / 0.18), 0 4px 14px rgb(29 79 199 / 0.08);
@@ -68,6 +70,12 @@ h1, h2, h3, .font-display {
   50% { transform: translateY(-8px); }
 }
 .animate-float { animation: float-slow 6s ease-in-out infinite; }
+
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(1.5deg); }
+}
+.animate-float-slower { animation: float-slower 9s ease-in-out infinite; }
 
 .scrollbar-thin {
   scrollbar-width: thin;
