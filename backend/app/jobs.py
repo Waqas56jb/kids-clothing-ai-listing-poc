@@ -57,7 +57,7 @@ def _job_payload(job: Job) -> dict:
 
 
 def _persist(job: Job, required: bool = False) -> None:
-    if not db.storage_enabled():
+    if not db.postgres_enabled():
         if required:
             raise RuntimeError("Database is not configured")
         return
@@ -91,6 +91,10 @@ def _job_from_row(row: dict) -> Job:
 
 
 def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, access_token: str | None = None) -> Job:
+    if not db.postgres_enabled():
+        raise RuntimeError("DATABASE_URL is not configured")
+    if not db.storage_enabled():
+        raise RuntimeError("S3_BUCKET is not configured")
     job_id = uuid.uuid4().hex[:12]
     # Keep scratch under the backend tree. Windows tempfile paths break some
     # CV libs with Errno 22; Storage remains the durable copy after upload.
@@ -127,13 +131,13 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
 def get_job(job_id: str, access_token: str | None = None) -> Job | None:
     cached = _jobs.get(job_id)
     if cached is not None:
-        if db.storage_enabled():
+        if db.postgres_enabled():
             try:
                 cached.workspace = db.get_workspace(job_id)
             except Exception:
                 pass
         return cached
-    if not db.storage_enabled():
+    if not db.postgres_enabled():
         return None
     try:
         row = db.fetch_job(job_id, access_token=access_token)
@@ -147,7 +151,7 @@ def get_job(job_id: str, access_token: str | None = None) -> Job | None:
 
 
 def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: str | None = None) -> list[Job]:
-    if db.storage_enabled():
+    if db.postgres_enabled():
         try:
             rows = db.list_jobs(user_id=None if is_admin else user_id, access_token=access_token)
             jobs = [_job_from_row(row) for row in rows]
@@ -171,7 +175,8 @@ def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: 
 def _run_job(job: Job, input_dir: Path) -> None:
     job.status = "processing"
     _persist(job)
-    output_dir = OUTPUT_ROOT / job.id
+    # Scratch only — durable artifacts go to S3, then local outputs are deleted.
+    output_dir = UPLOAD_ROOT / job.id / "out"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def on_progress(stage: str, current: int, total: int) -> None:
@@ -186,6 +191,7 @@ def _run_job(job: Job, input_dir: Path) -> None:
             blobstore.upload_tree(job.id, output_dir, "artifact")
         except Exception as exc:  # noqa: BLE001
             print(f"[jobs] output upload failed {job.id}: {exc}")
+            raise RuntimeError(f"Could not save outputs to S3: {exc}") from exc
         job.status = "done"
         _persist(job)
         job.workspace = workspace_mod.seed_workspace(job.id, job.result)
@@ -194,7 +200,6 @@ def _run_job(job: Job, input_dir: Path) -> None:
         job.status = "error"
         _persist(job)
     finally:
-        # Keep outputs for /files fallback; remove only the upload scratch copy.
         if job.scratch_dir:
             shutil.rmtree(job.scratch_dir, ignore_errors=True)
             job.scratch_dir = None

@@ -1,16 +1,11 @@
-import { supabase } from './lib/supabase'
+import { getAccessToken as readToken } from './lib/session'
 
 const PRODUCTION_API = 'https://51.21.60.78.sslip.io'
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || PRODUCTION_API
+export const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || PRODUCTION_API
 
 async function getAccessToken() {
-  let { data } = await supabase.auth.getSession()
-  if (!data.session?.access_token) {
-    const refreshed = await supabase.auth.refreshSession()
-    data = refreshed.data
-  }
-  const token = data.session?.access_token
+  const token = readToken()
   if (!token) throw new Error('Please sign in again')
   return token
 }

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Baby, Eye, EyeOff, Images, ScanSearch, Shirt, Sparkles } from 'lucide-react'
-import { toast } from 'react-toastify'
 import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 
@@ -31,17 +30,13 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
     if (!configured) {
-      setError('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.')
+      setError('API is not available. Check VITE_API_URL.')
       return
     }
     setSubmitting(true)
     try {
       if (mode === 'signup') {
-        const data = await signUp(email.trim(), password, fullName.trim())
-        if (!data.session) {
-          toast.info('Account created. Confirm your email, then sign in.')
-          setMode('login')
-        }
+        await signUp(email.trim(), password, fullName.trim())
       } else {
         await signIn(email.trim(), password)
       }

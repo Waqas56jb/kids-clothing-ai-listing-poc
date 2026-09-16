@@ -17,3 +17,6 @@ fastapi
 uvicorn[standard]
 python-multipart
 psycopg[binary]
+PyJWT
+bcrypt
+boto3

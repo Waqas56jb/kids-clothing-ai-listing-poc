@@ -3,10 +3,9 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { supabase } from '../../lib/supabase'
 import Button from '../ui/Button'
 
-const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : '/')
+const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://51.21.60.78.sslip.io')
 
 export default function LoginPage() {
   const { session, profile, loading, configured, signIn } = useAuth()
@@ -25,21 +24,12 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
     if (!configured) {
-      setError('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.')
+      setError('API is not available. Check VITE_API_URL.')
       return
     }
     setSubmitting(true)
     try {
-      const data = await signIn(email.trim(), password)
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-      if (profileRow?.role !== 'admin') {
-        await supabase.auth.signOut()
-        setError('This console is for admin accounts only.')
-      }
+      await signIn(email.trim(), password)
     } catch (err) {
       setError(err.message || 'Could not sign in. Check your admin email and password.')
     } finally {

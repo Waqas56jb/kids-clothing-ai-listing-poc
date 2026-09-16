@@ -1,80 +1,89 @@
 from __future__ import annotations
 
 import mimetypes
+import os
+from functools import lru_cache
 from pathlib import Path
+
+import boto3
+from botocore.exceptions import ClientError
 
 from app import db
 
-BUCKET = "job-files"
+BUCKET = (os.getenv("S3_BUCKET") or "").strip()
+REGION = (os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "eu-north-1").strip()
+PREFIX = (os.getenv("S3_PREFIX") or "job-files").strip().strip("/")
 
 
-def _headers(content_type: str | None = None, upsert: bool = False) -> dict[str, str]:
-    key = db.SECRET_KEY or db.PUBLISHABLE_KEY
-    headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-    }
-    if content_type:
-        headers["Content-Type"] = content_type
-    if upsert:
-        headers["x-upsert"] = "true"
-    return headers
+class StorageNotConfigured(RuntimeError):
+    pass
+
+
+@lru_cache(maxsize=1)
+def _client():
+    if not BUCKET:
+        raise StorageNotConfigured("S3_BUCKET is not configured")
+    kwargs = {"region_name": REGION}
+    key = (os.getenv("AWS_ACCESS_KEY_ID") or "").strip()
+    secret = (os.getenv("AWS_SECRET_ACCESS_KEY") or "").strip()
+    if key and secret:
+        kwargs["aws_access_key_id"] = key
+        kwargs["aws_secret_access_key"] = secret
+    return boto3.client("s3", **kwargs)
+
+
+def _key(storage_path: str) -> str:
+    relative = storage_path.replace("\\", "/").lstrip("/")
+    if not relative or ".." in relative.split("/"):
+        raise RuntimeError("Invalid storage path")
+    return f"{PREFIX}/{relative}" if PREFIX else relative
 
 
 def ensure_bucket() -> None:
-    if not db.enabled():
+    if not BUCKET:
+        print("[storage] S3_BUCKET not set — uploads will fail until configured")
         return
+    client = _client()
     try:
-        db._request(
-            "POST",
-            "/storage/v1/bucket",
-            {"id": BUCKET, "name": BUCKET, "public": False, "file_size_limit": 52_428_800},
-            use_secret=True,
-        )
-    except RuntimeError as exc:
-        if "already exists" not in str(exc).lower() and "(409)" not in str(exc):
-            print(f"[storage] bucket create: {exc}")
+        client.head_bucket(Bucket=BUCKET)
+        return
+    except ClientError:
+        pass
+    params: dict = {"Bucket": BUCKET}
+    if REGION != "us-east-1":
+        params["CreateBucketConfiguration"] = {"LocationConstraint": REGION}
+    try:
+        client.create_bucket(**params)
+        print(f"[storage] created bucket s3://{BUCKET}")
+    except ClientError as exc:
+        code = (exc.response.get("Error") or {}).get("Code", "")
+        if code not in {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}:
+            print(f"[storage] bucket ensure failed: {exc}")
 
 
 def upload_bytes(storage_path: str, data: bytes, content_type: str | None = None) -> str:
-    if not db.enabled():
-        raise RuntimeError("Supabase is not configured")
+    if not BUCKET:
+        raise StorageNotConfigured("S3_BUCKET is not configured")
     mime = content_type or mimetypes.guess_type(storage_path)[0] or "application/octet-stream"
-    url = f"{db.SUPABASE_URL}/storage/v1/object/{BUCKET}/{storage_path}"
-    import urllib.error
-    import urllib.request
-
-    def send(method: str) -> None:
-        request = urllib.request.Request(url, data=data, headers=_headers(mime, upsert=True), method=method)
-        with urllib.request.urlopen(request, timeout=60):
-            return
-
-    try:
-        send("POST")
-    except urllib.error.HTTPError as exc:
-        if exc.code in {400, 409}:
-            send("PUT")
-        else:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Storage upload failed ({exc.code}): {detail}") from exc
+    _client().put_object(
+        Bucket=BUCKET,
+        Key=_key(storage_path),
+        Body=data,
+        ContentType=mime,
+    )
     return storage_path
 
 
 def download_bytes(storage_path: str) -> tuple[bytes, str]:
-    if not db.enabled():
-        raise RuntimeError("Supabase is not configured")
-    import urllib.error
-    import urllib.request
-
-    url = f"{db.SUPABASE_URL}/storage/v1/object/{BUCKET}/{storage_path}"
-    request = urllib.request.Request(url, headers=_headers(), method="GET")
+    if not BUCKET:
+        raise StorageNotConfigured("S3_BUCKET is not configured")
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            mime = response.headers.get("Content-Type") or mimetypes.guess_type(storage_path)[0] or "application/octet-stream"
-            return response.read(), mime
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Storage download failed ({exc.code}): {detail}") from exc
+        obj = _client().get_object(Bucket=BUCKET, Key=_key(storage_path))
+    except ClientError as exc:
+        raise RuntimeError(f"Storage download failed: {storage_path}") from exc
+    body = obj["Body"].read()
+    mime = obj.get("ContentType") or mimetypes.guess_type(storage_path)[0] or "application/octet-stream"
+    return body, mime
 
 
 def upload_tree(job_id: str, local_dir: Path, kind_for: str) -> list[str]:
@@ -115,5 +124,4 @@ def upload_originals(job_id: str, local_dir: Path) -> list[str]:
 
 
 def startup() -> None:
-    if db.enabled():
-        ensure_bucket()
+    ensure_bucket()

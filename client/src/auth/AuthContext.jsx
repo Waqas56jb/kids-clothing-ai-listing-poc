@@ -1,18 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured } from '../lib/supabase'
+import { API_BASE, clearSession, getStoredSession, setStoredSession } from '../lib/session'
 
 const AuthContext = createContext(null)
 
-async function loadProfile(user) {
-  const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  return (
-    data ?? {
-      id: user.id,
-      email: user.email,
-      full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0],
-      role: 'seller',
-    }
-  )
+async function authRequest(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Auth failed')
+  }
+  return data
 }
 
 export function AuthProvider({ children }) {
@@ -21,57 +22,47 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!supabaseConfigured) {
-      setLoading(false)
-      return
+    const stored = getStoredSession()
+    if (stored?.access_token && stored?.user) {
+      setSession({ access_token: stored.access_token, user: stored.user })
+      setProfile(stored.profile || stored.user)
     }
-
-    let cancelled = false
-
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (cancelled) return
-      setSession(data.session)
-      if (data.session?.user) {
-        setProfile(await loadProfile(data.session.user))
-      }
-      setLoading(false)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      setSession(nextSession)
-      if (nextSession?.user) {
-        setProfile(await loadProfile(nextSession.user))
-      } else {
-        setProfile(null)
-      }
-    })
-
-    return () => {
-      cancelled = true
-      subscription.unsubscribe()
-    }
+    setLoading(false)
   }, [])
 
   const signIn = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
+    const data = await authRequest('/api/auth/login', { email, password })
+    const next = {
+      access_token: data.access_token,
+      user: data.user,
+      profile: data.profile || data.user,
+    }
+    setStoredSession(next)
+    setSession({ access_token: next.access_token, user: next.user })
+    setProfile(next.profile)
     return data
   }, [])
 
   const signUp = useCallback(async (email, password, fullName) => {
-    const { data, error } = await supabase.auth.signUp({
+    const data = await authRequest('/api/auth/signup', {
       email,
       password,
-      options: { data: { full_name: fullName, role: 'seller' } },
+      full_name: fullName,
     })
-    if (error) throw error
+    const next = {
+      access_token: data.access_token,
+      user: data.user,
+      profile: data.profile || data.user,
+    }
+    setStoredSession(next)
+    setSession({ access_token: next.access_token, user: next.user })
+    setProfile(next.profile)
     return data
   }, [])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    clearSession()
+    setSession(null)
     setProfile(null)
   }, [])
 
@@ -82,7 +73,7 @@ export function AuthProvider({ children }) {
       profile,
       role: profile?.role ?? null,
       loading,
-      configured: supabaseConfigured,
+      configured: true,
       signIn,
       signUp,
       signOut,

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app import blobstore, db, jobs, workspace as workspace_mod
+from app import auth as auth_mod
 from app.auth import require_user
 
 
@@ -66,17 +67,42 @@ async def serve_file(job_id: str, file_path: str):
     try:
         data, mime = blobstore.download_bytes(storage_path)
         return Response(content=data, media_type=mime)
-    except RuntimeError:
-        local = jobs.OUTPUT_ROOT / job_id / file_path
-        if local.is_file():
-            mime = mimetypes.guess_type(str(local))[0] or "application/octet-stream"
-            return Response(content=local.read_bytes(), media_type=mime)
-        raise HTTPException(status_code=404, detail="File not found") from None
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="File not found") from exc
 
 
 @app.get("/api/me")
 async def me(user: Annotated[dict, Depends(require_user)]):
     return {key: value for key, value in user.items() if key != "access_token"}
+
+
+@app.post("/api/auth/signup")
+async def signup(body: dict[str, Any]):
+    email = (body.get("email") or "").strip()
+    password = body.get("password") or ""
+    full_name = (body.get("full_name") or "").strip() or None
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    try:
+        return auth_mod.register_user(email, password, full_name=full_name, role="seller")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/auth/login")
+async def login(body: dict[str, Any]):
+    email = (body.get("email") or "").strip()
+    password = body.get("password") or ""
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    try:
+        return auth_mod.login_user(email, password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/jobs")
