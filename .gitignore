@@ -19,5 +19,7 @@ runs/
 .pytest_cache/
 *.egg-info/
 *.log
-backend/.deploy/
+backend/.deploy/*
+!backend/.deploy/deploy_*.sh
 **/*.pem
+*-dist.tar.gz
