@@ -53,7 +53,11 @@ export async function listJobs() {
 }
 
 export function fileUrl(jobId, relativePath) {
-  return `${API_BASE}/files/${jobId}/${relativePath}`
+  const token = readToken()
+  const url = `${API_BASE}/files/${jobId}/${relativePath}`
+  if (!token) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${encodeURIComponent(token)}`
 }
 
 export async function patchWorkspace(jobId, patch) {

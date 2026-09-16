@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -62,7 +62,22 @@ async def api_health():
 
 
 @app.get("/files/{job_id}/{file_path:path}")
-async def serve_file(job_id: str, file_path: str):
+async def serve_file(
+    job_id: str,
+    file_path: str,
+    authorization: Annotated[str | None, Header()] = None,
+    token: str | None = None,
+):
+    # <img src> cannot send Authorization headers, so allow ?token= as well.
+    auth_header = authorization
+    if not auth_header and token:
+        auth_header = f"Bearer {token}"
+    user = auth_mod.resolve_user(auth_header)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in required")
+    job = jobs.get_job(job_id, access_token=user.get("access_token"))
+    if job is None or (user["role"] != "admin" and job.user_id != user["id"]):
+        raise HTTPException(status_code=404, detail="File not found")
     storage_path = f"{job_id}/{file_path}"
     try:
         data, mime = blobstore.download_bytes(storage_path)

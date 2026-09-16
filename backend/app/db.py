@@ -92,8 +92,8 @@ def _pg_upsert_job(payload: dict[str, Any]) -> None:
             total = excluded.total,
             error = excluded.error,
             image_count = excluded.image_count,
-            garment_count = excluded.garment_count,
-            result = excluded.result,
+            garment_count = coalesce(excluded.garment_count, public.jobs.garment_count),
+            result = coalesce(excluded.result, public.jobs.result),
             updated_at = now()
         """,
         (

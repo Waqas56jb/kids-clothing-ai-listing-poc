@@ -30,43 +30,58 @@ export default function ResultsPage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const timeout = setTimeout(() => {
+
+    const load = () =>
+      getJob(jobId)
+        .then((data) => {
+          if (cancelled) return
+          if (!data?.result && data?.status === 'error') {
+            setError(data.error || 'This batch failed while processing.')
+            setLoading(false)
+            return
+          }
+          if (!data?.result) {
+            if (data?.status === 'processing' || data?.status === 'queued') {
+              setError(null)
+              setLoading(true)
+              return
+            }
+            setError('No results yet for this batch. Open Dashboard and open it again once processing finishes.')
+            setLoading(false)
+            return
+          }
+          setResult(data.result)
+          setLoading(false)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          console.error(err)
+          const message = err.message || 'Could not load this batch'
+          setError(
+            /not found|sign in/i.test(message)
+              ? 'This batch is not available on your account. Open Dashboard to see your saved batches.'
+              : message,
+          )
+          setLoading(false)
+        })
+
+    load()
+    // While processing, keep polling so a slow interpretation still lands from Postgres.
+    const poll = setInterval(() => {
       if (cancelled) return
-      setError('This request is taking too long. The batch may no longer exist in the database.')
-      setLoading(false)
-    }, 12000)
-    getJob(jobId)
-      .then((data) => {
-        if (cancelled) return
-        clearTimeout(timeout)
-        if (!data?.result && data?.status === 'error') {
-          setError(data.error || 'This batch failed while processing.')
+      getJob(jobId)
+        .then((data) => {
+          if (cancelled || !data?.result) return
+          setResult(data.result)
           setLoading(false)
-          return
-        }
-        if (!data?.result) {
-          setError('No results yet for this batch. Open Dashboard and start a new upload.')
-          setLoading(false)
-          return
-        }
-        setResult(data.result)
-        setLoading(false)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        clearTimeout(timeout)
-        console.error(err)
-        const message = err.message || 'Could not load this batch'
-        setError(
-          /not found/i.test(message)
-            ? 'This batch is not in the database (it was only on the old local server). Start a new upload from the dashboard.'
-            : message,
-        )
-        setLoading(false)
-      })
+          setError(null)
+        })
+        .catch(() => {})
+    }, 4000)
+
     return () => {
       cancelled = true
-      clearTimeout(timeout)
+      clearInterval(poll)
     }
   }, [jobId])
 

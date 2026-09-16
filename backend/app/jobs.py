@@ -63,7 +63,7 @@ def _persist(job: Job, required: bool = False) -> None:
         return
     try:
         db.upsert_job(_job_payload(job), access_token=job.access_token)
-    except Exception as exc:  # noqa: BLE001 — surface on create, log on progress
+    except Exception as exc:  # noqa: BLE001 — surface on create/final, log on progress
         print(f"[jobs] failed to persist {job.id}: {exc}")
         if required:
             raise RuntimeError(f"Could not save job to the database: {exc}") from exc
@@ -72,7 +72,10 @@ def _persist(job: Job, required: bool = False) -> None:
 def _job_from_row(row: dict) -> Job:
     result = None
     if row.get("result"):
-        result = PipelineResult.model_validate(row["result"])
+        try:
+            result = PipelineResult.model_validate(row["result"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"[jobs] bad result jsonb for {row.get('id')}: {exc}")
     user_id = row.get("user_id")
     workspace = dict(row.get("workspace") or {})
     return Job(
@@ -95,9 +98,10 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
         raise RuntimeError("DATABASE_URL is not configured")
     if not db.storage_enabled():
         raise RuntimeError("S3_BUCKET is not configured")
+    if not user_id:
+        raise RuntimeError("user_id is required so each seller only owns their own jobs")
     job_id = uuid.uuid4().hex[:12]
-    # Keep scratch under the backend tree. Windows tempfile paths break some
-    # CV libs with Errno 22; Storage remains the durable copy after upload.
+    # Scratch under the backend tree only. Durable copy = Postgres + S3.
     scratch = UPLOAD_ROOT / job_id
     scratch.mkdir(parents=True, exist_ok=True)
     job = Job(id=job_id, image_count=len(files), user_id=user_id, access_token=access_token, scratch_dir=str(scratch))
@@ -119,9 +123,12 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
         blobstore.upload_originals(job_id, input_dir)
     except Exception as exc:  # noqa: BLE001
         print(f"[jobs] original upload failed {job_id}: {exc}")
+        job.status = "error"
+        job.error = f"Could not save images to storage: {exc}"
+        _persist(job, required=False)
         _jobs.pop(job_id, None)
         shutil.rmtree(scratch, ignore_errors=True)
-        raise RuntimeError(f"Could not save images to storage: {exc}") from exc
+        raise RuntimeError(job.error) from exc
 
     thread = threading.Thread(target=_run_job, args=(job, input_dir), daemon=True)
     thread.start()
@@ -129,53 +136,75 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
 
 
 def get_job(job_id: str, access_token: str | None = None) -> Job | None:
+    """Load job with Postgres as source of truth so interpretation results survive restarts."""
+    row = None
+    if db.postgres_enabled():
+        try:
+            row = db.fetch_job(job_id, access_token=access_token)
+        except RuntimeError:
+            row = None
+
     cached = _jobs.get(job_id)
-    if cached is not None:
-        if db.postgres_enabled():
-            try:
-                cached.workspace = db.get_workspace(job_id)
-            except Exception:
-                pass
-        return cached
-    if not db.postgres_enabled():
-        return None
-    try:
-        row = db.fetch_job(job_id, access_token=access_token)
-    except RuntimeError:
-        return None
-    if row is None:
-        return None
-    job = _job_from_row(row)
-    _jobs[job_id] = job
-    return job
+    if row is not None:
+        job = _job_from_row(row)
+        if cached is not None and job.status in {"queued", "processing"}:
+            if cached.current >= job.current:
+                job.stage = cached.stage or job.stage
+                job.current = cached.current
+                job.total = cached.total or job.total
+            if cached.result is not None and job.result is None:
+                job.result = cached.result
+                job.status = cached.status
+                job.error = cached.error
+        if cached is not None:
+            job.access_token = cached.access_token
+            job.scratch_dir = cached.scratch_dir
+        _jobs[job_id] = job
+        return job
+
+    return cached
 
 
 def list_jobs(user_id: str | None = None, is_admin: bool = False, access_token: str | None = None) -> list[Job]:
+    if not is_admin and not user_id:
+        return []
+
     if db.postgres_enabled():
         try:
             rows = db.list_jobs(user_id=None if is_admin else user_id, access_token=access_token)
-            jobs = [_job_from_row(row) for row in rows]
+            jobs: list[Job] = []
+            for row in rows:
+                try:
+                    jobs.append(_job_from_row(row))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[jobs] skip bad row {row.get('id')}: {exc}")
             merged: dict[str, Job] = {job.id: job for job in jobs}
             for job in _jobs.values():
                 if is_admin or job.user_id == user_id:
                     db_job = merged.get(job.id)
                     if db_job is not None:
-                        job.workspace = db_job.workspace
+                        # Prefer durable DB result/workspace; keep live progress from memory.
+                        if db_job.result is not None:
+                            job.result = db_job.result
+                        job.workspace = db_job.workspace or job.workspace
+                        if db_job.status in {"done", "error"}:
+                            job.status = db_job.status
+                            job.error = db_job.error
                     merged[job.id] = job
-            return sorted(merged.values(), key=lambda job: job.created_at, reverse=True)
+            return sorted(merged.values(), key=lambda item: item.created_at, reverse=True)
         except RuntimeError as exc:
             print(f"[jobs] failed to list jobs: {exc}")
 
     jobs = list(_jobs.values())
     if not is_admin:
         jobs = [job for job in jobs if job.user_id == user_id]
-    return sorted(jobs, key=lambda job: job.created_at, reverse=True)
+    return sorted(jobs, key=lambda item: item.created_at, reverse=True)
 
 
 def _run_job(job: Job, input_dir: Path) -> None:
     job.status = "processing"
     _persist(job)
-    # Scratch only — durable artifacts go to S3, then local outputs are deleted.
+    # Scratch only — durable artifacts go to S3 + Postgres, then local outputs are deleted.
     output_dir = UPLOAD_ROOT / job.id / "out"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,12 +222,13 @@ def _run_job(job: Job, input_dir: Path) -> None:
             print(f"[jobs] output upload failed {job.id}: {exc}")
             raise RuntimeError(f"Could not save outputs to S3: {exc}") from exc
         job.status = "done"
-        _persist(job)
+        # Must land in Postgres — this is the seller's permanent interpretation record.
+        _persist(job, required=True)
         job.workspace = workspace_mod.seed_workspace(job.id, job.result)
     except Exception as exc:  # noqa: BLE001 -- surface any failure to the client
         job.error = str(exc)
         job.status = "error"
-        _persist(job)
+        _persist(job, required=True)
     finally:
         if job.scratch_dir:
             shutil.rmtree(job.scratch_dir, ignore_errors=True)
