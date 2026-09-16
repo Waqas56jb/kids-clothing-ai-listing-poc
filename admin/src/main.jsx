@@ -9,7 +9,7 @@ import { AuthProvider } from './auth/AuthContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
+    <BrowserRouter>
       <AuthProvider>
         <App />
         <ToastContainer position="bottom-center" autoClose={3000} theme="light" />

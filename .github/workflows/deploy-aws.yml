@@ -31,7 +31,7 @@ concurrency:
 
 env:
   API_URL: https://51.21.60.78.sslip.io
-  ADMIN_URL: https://51.21.60.78.sslip.io/admin
+  ADMIN_URL: https://admin.51.21.60.78.sslip.io
   CLIENT_URL: https://51.21.60.78.sslip.io
 
 jobs:

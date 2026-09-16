@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 
-const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : 'https://51.21.60.78.sslip.io/admin')
+const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : 'https://admin.51.21.60.78.sslip.io')
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },

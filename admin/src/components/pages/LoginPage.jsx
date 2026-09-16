@@ -6,7 +6,6 @@ import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 
 const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://51.21.60.78.sslip.io')
-const asset = (path) => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, '')}`
 
 const fieldClass =
   'w-full rounded-2xl border border-ink/10 bg-white/90 px-4 py-3.5 text-sm text-ink shadow-soft outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100'
@@ -44,7 +43,7 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-dvh lg:grid lg:grid-cols-[1fr_1fr]">
       <section className="relative isolate hidden min-h-dvh overflow-hidden lg:block">
-        <img src={asset('landing/nursery.jpg')} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src="/landing/nursery.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-br from-ink/85 via-brand-900/70 to-ink/75" />
         <div className="bg-grain pointer-events-none absolute inset-0 opacity-35" />
 
@@ -107,7 +106,7 @@ export default function LoginPage() {
         <div
           className="pointer-events-none absolute inset-0 lg:hidden"
           style={{
-            backgroundImage: `url(${asset('landing/nursery.jpg')})`,
+            backgroundImage: 'url(/landing/nursery.jpg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
