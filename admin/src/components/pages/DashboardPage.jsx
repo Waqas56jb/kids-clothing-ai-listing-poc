@@ -27,6 +27,7 @@ import Skeleton from '../ui/Skeleton'
 import Loader from '../ui/Loader'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
+const asset = (path) => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, '')}`
 
 const tooltipStyle = {
   borderRadius: 16,
@@ -104,7 +105,7 @@ export default function DashboardPage() {
         className="relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-ink text-white shadow-elevated"
       >
         <img
-          src="/landing/hero.jpg"
+          src={asset('landing/hero.jpg')}
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-40"
         />

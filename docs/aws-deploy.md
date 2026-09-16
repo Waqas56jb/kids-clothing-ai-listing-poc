@@ -7,8 +7,13 @@ Push to `main` rebuilds and updates production on Lightsail via GitHub Actions.
 | App | URL |
 |-----|-----|
 | Seller | https://51.21.60.78.sslip.io |
-| Admin | https://admin.51.21.60.78.sslip.io |
+| Admin | https://51.21.60.78.sslip.io/admin |
 | API | https://51.21.60.78.sslip.io/api/health |
+
+Admin is path-based (`/admin`) on the seller host so Safari/Chrome/mobile
+carriers that cannot resolve deep `admin.IP.sslip.io` hostnames still work.
+Dash host `https://51-21-60-78.sslip.io` is an alias for the same site.
+
 
 ## One-time GitHub secrets
 
