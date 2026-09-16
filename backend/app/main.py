@@ -36,7 +36,7 @@ app.add_middleware(
         "https://appealing-embrace-production-8bc0.up.railway.app",
         "https://bountiful-prosperity-production-e9b2.up.railway.app",
     ],
-    allow_origin_regex=r"https://.*\.(up\.railway\.app|sslip\.io)",
+    allow_origin_regex=r"https://.*\.(up\.railway\.app|sslip\.io|nip\.io|trycloudflare\.com)",
     allow_methods=["*"],
     allow_headers=["*"],
 )

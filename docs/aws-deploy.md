@@ -9,10 +9,18 @@ Push to `main` rebuilds and updates production on Lightsail via GitHub Actions.
 | Seller | https://51.21.60.78.sslip.io |
 | Admin | https://51.21.60.78.sslip.io/admin |
 | API | https://51.21.60.78.sslip.io/api/health |
+| Alt (nip.io) | https://51.21.60.78.nip.io |
+| Alt admin | https://51.21.60.78.nip.io/admin |
 
-Admin is served under `/admin` on the seller host. Deep hostnames like
-`admin.51.21.60.78.sslip.io` often time out on mobile carrier DNS/TLS;
-those hosts redirect to `/admin` when they resolve.
+Do **not** send clients `admin.51.21.60.78.sslip.io` — many EU/mobile networks time out on that hostname.
+
+If sslip/nip DNS is blocked, use the Cloudflare tunnel URL printed on the server:
+
+```bash
+sudo grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /var/log/kids-ai-tunnel.log | tail -1
+```
+
+HTTP/3 is disabled on Caddy (HTTP/1.1 + HTTP/2 only) to avoid QUIC timeouts on some carriers.
 
 ## One-time GitHub secrets
 

@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  API_URL: https://51.21.60.78.sslip.io
+  # Same-origin /api via Caddy — do not hardcode sslip (breaks EU clients / tunnels).
+  API_URL: ''
   ADMIN_URL: https://51.21.60.78.sslip.io/admin
   CLIENT_URL: https://51.21.60.78.sslip.io
 

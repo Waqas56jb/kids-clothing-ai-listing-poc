@@ -1,6 +1,5 @@
-const PRODUCTION_API = 'https://51.21.60.78.sslip.io'
-
-export const API_BASE = (import.meta.env.VITE_API_URL || '').trim() || PRODUCTION_API
+// Empty = same-origin /api (works on sslip, nip, and Cloudflare tunnel).
+export const API_BASE = (import.meta.env.VITE_API_URL || '').trim()
 
 const STORAGE_KEY = 'kids-ai-seller-auth'
 
