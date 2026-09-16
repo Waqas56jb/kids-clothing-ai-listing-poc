@@ -234,6 +234,291 @@ def merge_workspace(job_id: str, patch: dict[str, Any], replace_keys: list[str] 
     return set_workspace(job_id, current)
 
 
+# ---------------------------------------------------------------------------
+# Marketplace: published listings, favorites, offers
+# ---------------------------------------------------------------------------
+
+_LISTING_COLUMNS = (
+    "l.id, l.job_id, l.garment_id, l.seller_id, l.title, l.description, l.category, l.brand, "
+    "l.size, l.color, l.condition, l.gender, l.defects, l.price, l.currency, l.images, "
+    "l.cover_image, l.status, l.created_at, l.updated_at, p.full_name as seller_name"
+)
+
+
+def _listing_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not row:
+        return None
+    data = dict(row)
+    for key in ("id", "seller_id"):
+        if data.get(key) is not None:
+            data[key] = str(data[key])
+    data["images"] = list(data.get("images") or [])
+    return data
+
+
+def insert_listing(listing: dict[str, Any]) -> dict[str, Any]:
+    from psycopg.types.json import Jsonb
+
+    row = _pg_execute(
+        """
+        insert into public.listings (
+            job_id, garment_id, seller_id, title, description, category, brand, size, color,
+            condition, gender, defects, price, currency, images, cover_image, status
+        ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (job_id, garment_id) do update set
+            title = excluded.title,
+            description = excluded.description,
+            category = excluded.category,
+            brand = excluded.brand,
+            size = excluded.size,
+            color = excluded.color,
+            condition = excluded.condition,
+            gender = excluded.gender,
+            defects = excluded.defects,
+            price = excluded.price,
+            images = excluded.images,
+            cover_image = excluded.cover_image,
+            status = 'published',
+            updated_at = now()
+        returning id
+        """,
+        (
+            listing.get("job_id"),
+            listing.get("garment_id"),
+            listing.get("seller_id"),
+            listing.get("title"),
+            listing.get("description"),
+            listing.get("category"),
+            listing.get("brand"),
+            listing.get("size"),
+            listing.get("color"),
+            listing.get("condition"),
+            listing.get("gender"),
+            listing.get("defects"),
+            int(listing.get("price") or 0),
+            listing.get("currency") or "SEK",
+            Jsonb(list(listing.get("images") or [])),
+            listing.get("cover_image"),
+            listing.get("status") or "published",
+        ),
+        fetch="one",
+    )
+    return fetch_listing(str(row["id"]))  # type: ignore[index]
+
+
+def fetch_listing(listing_id: str) -> dict[str, Any] | None:
+    row = _pg_execute(
+        f"select {_LISTING_COLUMNS} from public.listings l left join public.profiles p on p.id = l.seller_id where l.id = %s",
+        (listing_id,),
+        fetch="one",
+    )
+    return _listing_row(row)
+
+
+def list_public_listings(
+    query: str | None = None,
+    category: str | None = None,
+    size: str | None = None,
+    condition: str | None = None,
+    min_price: int | None = None,
+    max_price: int | None = None,
+    sort: str = "newest",
+    limit: int = 60,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    clauses = ["l.status = 'published'"]
+    params: list[Any] = []
+    if query:
+        clauses.append(
+            "(l.title ilike %s or l.description ilike %s or coalesce(l.brand, '') ilike %s or coalesce(l.color, '') ilike %s)"
+        )
+        like = f"%{query.strip()}%"
+        params.extend([like, like, like, like])
+    if category:
+        clauses.append("l.category = %s")
+        params.append(category)
+    if size:
+        clauses.append("lower(coalesce(l.size, '')) = lower(%s)")
+        params.append(size)
+    if condition:
+        clauses.append("l.condition = %s")
+        params.append(condition)
+    if min_price is not None:
+        clauses.append("l.price >= %s")
+        params.append(int(min_price))
+    if max_price is not None:
+        clauses.append("l.price <= %s")
+        params.append(int(max_price))
+    order = {
+        "price_asc": "l.price asc, l.created_at desc",
+        "price_desc": "l.price desc, l.created_at desc",
+    }.get(sort, "l.created_at desc")
+    params.extend([int(limit), int(offset)])
+    rows = _pg_execute(
+        f"select {_LISTING_COLUMNS} from public.listings l left join public.profiles p on p.id = l.seller_id "
+        f"where {' and '.join(clauses)} order by {order} limit %s offset %s",
+        tuple(params),
+        fetch="all",
+    )
+    return [_listing_row(row) for row in (rows or [])]
+
+
+def is_public_image(storage_path: str) -> bool:
+    """True when the file is referenced by a published (or sold) listing."""
+    if not postgres_enabled():
+        return False
+    try:
+        row = _pg_execute(
+            "select 1 from public.listings where status in ('published', 'sold') and images ? %s limit 1",
+            (storage_path,),
+            fetch="one",
+        )
+    except Exception:  # noqa: BLE001 -- fail closed
+        return False
+    return row is not None
+
+
+def listing_facets() -> dict[str, Any]:
+    categories = _pg_execute(
+        "select category, count(*) as count from public.listings where status = 'published' group by category order by count desc",
+        fetch="all",
+    )
+    sizes = _pg_execute(
+        "select size, count(*) as count from public.listings where status = 'published' and size is not null group by size order by size",
+        fetch="all",
+    )
+    return {
+        "categories": [dict(row) for row in (categories or [])],
+        "sizes": [dict(row) for row in (sizes or [])],
+    }
+
+
+def list_seller_listings(seller_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        f"select {_LISTING_COLUMNS} from public.listings l left join public.profiles p on p.id = l.seller_id "
+        "where l.seller_id = %s order by l.created_at desc",
+        (seller_id,),
+        fetch="all",
+    )
+    return [_listing_row(row) for row in (rows or [])]
+
+
+def list_all_listings() -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        f"select {_LISTING_COLUMNS} from public.listings l left join public.profiles p on p.id = l.seller_id "
+        "order by l.created_at desc",
+        fetch="all",
+    )
+    return [_listing_row(row) for row in (rows or [])]
+
+
+def update_listing(listing_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+    allowed = {"title", "description", "price", "status", "category", "brand", "size", "color", "condition", "gender", "defects"}
+    sets: list[str] = []
+    params: list[Any] = []
+    for key, value in patch.items():
+        if key in allowed:
+            sets.append(f"{key} = %s")
+            params.append(int(value) if key == "price" and value is not None else value)
+    if not sets:
+        return fetch_listing(listing_id)
+    sets.append("updated_at = now()")
+    params.append(listing_id)
+    _pg_execute(f"update public.listings set {', '.join(sets)} where id = %s", tuple(params))
+    return fetch_listing(listing_id)
+
+
+def add_favorite(user_id: str, listing_id: str) -> None:
+    _pg_execute(
+        "insert into public.favorites (user_id, listing_id) values (%s, %s) on conflict do nothing",
+        (user_id, listing_id),
+    )
+
+
+def remove_favorite(user_id: str, listing_id: str) -> None:
+    _pg_execute("delete from public.favorites where user_id = %s and listing_id = %s", (user_id, listing_id))
+
+
+def list_favorite_ids(user_id: str) -> list[str]:
+    rows = _pg_execute("select listing_id from public.favorites where user_id = %s", (user_id,), fetch="all")
+    return [str(row["listing_id"]) for row in (rows or [])]
+
+
+def list_favorites(user_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        f"select {_LISTING_COLUMNS} from public.favorites f join public.listings l on l.id = f.listing_id "
+        "left join public.profiles p on p.id = l.seller_id where f.user_id = %s order by f.created_at desc",
+        (user_id,),
+        fetch="all",
+    )
+    return [_listing_row(row) for row in (rows or [])]
+
+
+def _offer_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not row:
+        return None
+    data = dict(row)
+    for key in ("id", "listing_id", "buyer_id", "seller_id"):
+        if data.get(key) is not None:
+            data[key] = str(data[key])
+    return data
+
+
+_OFFER_COLUMNS = (
+    "o.id, o.listing_id, o.buyer_id, o.seller_id, o.kind, o.amount, o.message, o.status, o.created_at, o.updated_at, "
+    "l.title as listing_title, l.cover_image as listing_cover, l.price as listing_price, "
+    "b.full_name as buyer_name, s.full_name as seller_name"
+)
+
+
+def create_offer(listing_id: str, buyer_id: str, seller_id: str, kind: str, amount: int, message: str | None) -> dict[str, Any]:
+    row = _pg_execute(
+        """
+        insert into public.offers (listing_id, buyer_id, seller_id, kind, amount, message)
+        values (%s, %s, %s, %s, %s, %s) returning id
+        """,
+        (listing_id, buyer_id, seller_id, kind, int(amount), message),
+        fetch="one",
+    )
+    return fetch_offer(str(row["id"]))  # type: ignore[index]
+
+
+def fetch_offer(offer_id: str) -> dict[str, Any] | None:
+    row = _pg_execute(
+        f"select {_OFFER_COLUMNS} from public.offers o join public.listings l on l.id = o.listing_id "
+        "left join public.profiles b on b.id = o.buyer_id left join public.profiles s on s.id = o.seller_id where o.id = %s",
+        (offer_id,),
+        fetch="one",
+    )
+    return _offer_row(row)
+
+
+def list_offers(user_id: str) -> dict[str, list[dict[str, Any]]]:
+    received = _pg_execute(
+        f"select {_OFFER_COLUMNS} from public.offers o join public.listings l on l.id = o.listing_id "
+        "left join public.profiles b on b.id = o.buyer_id left join public.profiles s on s.id = o.seller_id "
+        "where o.seller_id = %s order by o.created_at desc",
+        (user_id,),
+        fetch="all",
+    )
+    sent = _pg_execute(
+        f"select {_OFFER_COLUMNS} from public.offers o join public.listings l on l.id = o.listing_id "
+        "left join public.profiles b on b.id = o.buyer_id left join public.profiles s on s.id = o.seller_id "
+        "where o.buyer_id = %s order by o.created_at desc",
+        (user_id,),
+        fetch="all",
+    )
+    return {
+        "received": [_offer_row(row) for row in (received or [])],
+        "sent": [_offer_row(row) for row in (sent or [])],
+    }
+
+
+def update_offer_status(offer_id: str, status: str) -> dict[str, Any] | None:
+    _pg_execute("update public.offers set status = %s, updated_at = now() where id = %s", (status, offer_id))
+    return fetch_offer(offer_id)
+
+
 def to_iso(unix_seconds: float) -> str:
     return datetime.fromtimestamp(unix_seconds, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 

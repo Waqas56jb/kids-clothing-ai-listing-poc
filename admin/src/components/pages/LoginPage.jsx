@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
+import { BRAND } from '../../lib/sv'
 import Button from '../ui/Button'
 
 const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://miniplagg.com')
@@ -18,7 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState(location.state?.denied ? 'This console is for admin accounts only.' : '')
+  const [error, setError] = useState(location.state?.denied ? 'Adminpanelen är endast för administratörskonton.' : '')
 
   if (!loading && session && profile?.role === 'admin') {
     return <Navigate to={location.state?.from?.pathname || '/'} replace />
@@ -28,14 +29,14 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
     if (!configured) {
-      setError('API is not available. Check VITE_API_URL.')
+      setError('API:et är inte tillgängligt. Kontrollera VITE_API_URL.')
       return
     }
     setSubmitting(true)
     try {
       await signIn(email.trim(), password)
     } catch (err) {
-      setError(err.message || 'Could not sign in. Check your admin email and password.')
+      setError(err.message || 'Kunde inte logga in. Kontrollera e-post och lösenord.')
     } finally {
       setSubmitting(false)
     }
@@ -54,8 +55,8 @@ export default function LoginPage() {
               <ShieldCheck className="h-5 w-5" />
             </span>
             <div>
-              <p className="font-display text-2xl font-semibold text-white">Kids AI</p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">Admin console</p>
+              <p className="font-display text-2xl font-semibold text-white">{BRAND}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">Adminpanel</p>
             </div>
           </div>
 
@@ -66,7 +67,7 @@ export default function LoginPage() {
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
               className="font-display text-5xl font-medium leading-[1.08] text-white xl:text-[3.25rem]"
             >
-              Review every batch with calm precision.
+              Granska varje omgång med lugn och precision.
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 12 }}
@@ -74,7 +75,7 @@ export default function LoginPage() {
               transition={{ delay: 0.1, duration: 0.65 }}
               className="mt-5 text-base leading-relaxed text-white/65"
             >
-              Projects, detections, pricing, and listings across every seller — one secure console.
+              Projekt, detektioner, priser och annonser för alla säljare – samlat i en säker adminpanel.
             </motion.p>
 
             <motion.div
@@ -84,9 +85,9 @@ export default function LoginPage() {
               className="mt-10 grid grid-cols-3 gap-3"
             >
               {[
-                { k: 'Ops', v: 'Live jobs' },
-                { k: 'QA', v: 'Review queue' },
-                { k: 'List', v: 'Publish ready' },
+                { k: 'Drift', v: 'Aktuella jobb' },
+                { k: 'Kvalitet', v: 'Granskningskö' },
+                { k: 'Annonser', v: 'Klara att publicera' },
               ].map((item) => (
                 <div
                   key={item.k}
@@ -99,7 +100,7 @@ export default function LoginPage() {
             </motion.div>
           </div>
 
-          <p className="text-xs text-white/40">Restricted access · Role-checked on every request</p>
+          <p className="text-xs text-white/40">Begränsad åtkomst · Behörigheten kontrolleras vid varje anrop</p>
         </div>
       </section>
 
@@ -128,35 +129,35 @@ export default function LoginPage() {
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <p className="font-display text-xl font-semibold text-ink">Kids AI</p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-600">Admin</p>
+                <p className="font-display text-xl font-semibold text-ink">{BRAND}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-600">Adminpanel</p>
               </div>
             </div>
 
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gold lg:mt-0">
-              Restricted
+              Begränsad åtkomst
             </p>
-            <h1 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">Sign in</h1>
+            <h1 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">Logga in</h1>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              Enter with your admin credentials to open the operations console.
+              Logga in med dina administratörsuppgifter för att öppna adminpanelen.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Admin email</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">E-post</span>
                 <input
                   required
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={fieldClass}
-                  placeholder="admin@kidsailisting.com"
+                  placeholder="admin@miniplagg.com"
                   autoComplete="email"
                 />
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lösenord</span>
                 <div className="relative">
                   <input
                     required
@@ -172,7 +173,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:text-ink"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Dölj lösenord' : 'Visa lösenord'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -185,15 +186,15 @@ export default function LoginPage() {
 
               <Button type="submit" size="lg" className="w-full !rounded-full" disabled={submitting}>
                 <LockKeyhole className="h-4 w-4" />
-                {submitting ? 'Signing in…' : 'Enter console'}
+                {submitting ? 'Loggar in…' : 'Logga in'}
               </Button>
             </form>
           </div>
 
           <p className="mt-7 text-center text-sm text-slate-500">
-            Looking for the seller app?{' '}
+            Letar du efter säljarappen?{' '}
             <a href={CLIENT_URL} className="font-semibold text-brand-700 underline-offset-4 hover:underline">
-              Open seller login
+              Till säljarinloggningen
             </a>
           </p>
         </motion.div>

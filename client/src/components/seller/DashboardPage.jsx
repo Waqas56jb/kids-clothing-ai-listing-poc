@@ -16,6 +16,7 @@ import {
 import { toast } from 'react-toastify'
 import { listJobs } from '../../api'
 import { summarizeJobs, timeAgo, trendSeries } from '../../lib/jobsStats'
+import { jobStatusLabel, plural } from '../../lib/sv'
 import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -51,7 +52,7 @@ export default function DashboardPage() {
       .then(setJobs)
       .catch((err) => {
         console.error(err)
-        toast.error(err.message || 'Could not load jobs from the server')
+        toast.error(err.message || 'Kunde inte hämta dina omgångar')
         setJobs([])
       })
   }, [loading, session])
@@ -67,22 +68,19 @@ export default function DashboardPage() {
         variants={fadeUp}
         className="relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-ink text-white shadow-elevated"
       >
-        <img
-          src="/landing/hero.jpg"
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-45"
-        />
+        <img src="/landing/hero.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-45" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-moss/55" />
         <div className="bg-grain pointer-events-none absolute inset-0 opacity-25" />
 
         <div className="relative flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-end lg:justify-between lg:p-10">
           <div className="max-w-xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">Seller studio</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">Säljarpanel</p>
             <h1 className="mt-2 font-display text-3xl font-semibold leading-tight sm:text-4xl lg:text-[2.75rem]">
-              Welcome back{firstName ? `, ${firstName}` : ''}
+              Välkommen tillbaka{firstName ? `, ${firstName}` : ''}
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-white/65 sm:text-base">
-              Upload a pile of kidswear. The pipeline finds every garment, reads the labels, and readies the listing.
+              Ladda upp en hög med barnkläder. AI:n hittar varje plagg, läser etiketterna och skriver färdiga
+              annonser – du granskar och publicerar.
             </p>
           </div>
           <Button
@@ -90,16 +88,16 @@ export default function DashboardPage() {
             onClick={() => navigate('/upload')}
             className="!rounded-full !bg-sand !text-ink hover:!bg-white shrink-0"
           >
-            <Plus className="h-4 w-4" /> New upload batch
+            <Plus className="h-4 w-4" /> Ny uppladdning
           </Button>
         </div>
       </motion.section>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:mt-8 lg:grid-cols-4 lg:gap-4">
-        <StatCard label="Batches" value={jobs?.length ?? '—'} icon={FolderOpen} tone="brand" />
-        <StatCard label="Garments" value={jobs ? totalGarments : '—'} icon={Shirt} tone="emerald" />
-        <StatCard label="Processing" value={jobs ? processing.length : '—'} icon={Settings2} tone="amber" />
-        <StatCard label="Completed" value={jobs ? done.length : '—'} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Omgångar" value={jobs?.length ?? '—'} icon={FolderOpen} tone="brand" />
+        <StatCard label="Plagg" value={jobs ? totalGarments : '—'} icon={Shirt} tone="emerald" />
+        <StatCard label="Bearbetas" value={jobs ? processing.length : '—'} icon={Settings2} tone="amber" />
+        <StatCard label="Klara" value={jobs ? done.length : '—'} icon={CheckCircle2} tone="emerald" />
       </div>
 
       <div className="mt-6 grid gap-4 lg:mt-8 lg:grid-cols-[1.4fr_1fr] lg:gap-5">
@@ -108,9 +106,9 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-gold" />
-                <h2 className="font-display text-xl font-semibold text-ink">Your yield</h2>
+                <h2 className="font-display text-xl font-semibold text-ink">Dina plagg</h2>
               </div>
-              <p className="mt-1 text-sm text-slate-500">Garments detected across recent batches.</p>
+              <p className="mt-1 text-sm text-slate-500">Antal plagg som hittats i dina senaste omgångar.</p>
             </div>
           </div>
           <div className="mt-4 h-40 sm:h-48">
@@ -118,7 +116,7 @@ export default function DashboardPage() {
               <Skeleton className="h-full w-full" />
             ) : trend.length === 0 ? (
               <div className="flex h-full items-center justify-center rounded-2xl bg-sand/50 text-sm text-slate-400">
-                Upload photos to see this curve.
+                Ladda upp bilder för att se kurvan.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -133,7 +131,7 @@ export default function DashboardPage() {
                   <Area
                     type="monotone"
                     dataKey="garments"
-                    name="Garments"
+                    name="Plagg"
                     stroke="#3d5c4a"
                     fill="url(#sellerYield)"
                     strokeWidth={2.5}
@@ -146,30 +144,42 @@ export default function DashboardPage() {
 
         <Card className="flex flex-col justify-between overflow-hidden p-5 sm:p-6">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">Next step</p>
-            <h2 className="mt-2 font-display text-2xl font-semibold text-ink">Keep the pipeline moving</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">Nästa steg</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-ink">Håll igång försäljningen</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              Drop a new batch whenever you have photos ready. Results land here as soon as processing finishes.
+              Ladda upp en ny omgång när du har bilder redo. Resultaten dyker upp här så fort bearbetningen är klar.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/upload')}
-            className="mt-6 flex items-center justify-between rounded-2xl border border-moss/15 bg-moss-soft/60 px-4 py-3.5 text-left transition hover:bg-moss-soft"
-          >
-            <span>
-              <span className="block text-sm font-semibold text-ink">Start a new upload</span>
-              <span className="text-xs text-slate-500">Multi-photo batches supported</span>
-            </span>
-            <ArrowUpRight className="h-5 w-5 text-moss" />
-          </button>
+          <div className="mt-6 space-y-2">
+            <button
+              type="button"
+              onClick={() => navigate('/upload')}
+              className="flex w-full items-center justify-between rounded-2xl border border-moss/15 bg-moss-soft/60 px-4 py-3.5 text-left transition hover:bg-moss-soft"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-ink">Starta en ny uppladdning</span>
+                <span className="text-xs text-slate-500">Upp till 40 bilder per omgång</span>
+              </span>
+              <ArrowUpRight className="h-5 w-5 text-moss" />
+            </button>
+            <Link
+              to="/annonser"
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left transition hover:bg-sand/60"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-ink">Mina annonser & bud</span>
+                <span className="text-xs text-slate-500">Publicerade plagg, favoriter och inkomna bud</span>
+              </span>
+              <ArrowUpRight className="h-5 w-5 text-slate-400" />
+            </Link>
+          </div>
         </Card>
       </div>
 
       <div className="mt-8 flex items-end justify-between gap-3 sm:mt-10">
         <div>
-          <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">Recent batches</h2>
-          <p className="mt-1 text-sm text-slate-500">Newest work first.</p>
+          <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">Senaste omgångarna</h2>
+          <p className="mt-1 text-sm text-slate-500">Nyaste först.</p>
         </div>
       </div>
 
@@ -183,21 +193,15 @@ export default function DashboardPage() {
         <div className="mt-4">
           <EmptyState
             icon={ImageOff}
-            title="No batches yet"
-            description="Upload your first batch of clothing photos to see AI results here."
-            action={<Button onClick={() => navigate('/upload')}>Upload photos</Button>}
+            title="Inga omgångar än"
+            description="Ladda upp din första omgång bilder så visas AI-resultaten här."
+            action={<Button onClick={() => navigate('/upload')}>Ladda upp bilder</Button>}
           />
         </div>
       ) : (
         <div className="mt-4 space-y-3">
           {jobs.map((job, index) => (
-            <motion.div
-              key={job.job_id}
-              custom={index}
-              initial="hidden"
-              animate="show"
-              variants={fadeUp}
-            >
+            <motion.div key={job.job_id} custom={index} initial="hidden" animate="show" variants={fadeUp}>
               <Link to={job.status === 'done' ? `/results/${job.job_id}` : `/processing/${job.job_id}`}>
                 <Card hover className="flex items-center justify-between gap-4 p-4 sm:p-5">
                   <div className="flex min-w-0 items-center gap-4">
@@ -206,19 +210,16 @@ export default function DashboardPage() {
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-ink">
-                        Batch {job.job_id.slice(0, 8)} · {job.image_count} photo
-                        {job.image_count === 1 ? '' : 's'}
+                        Omgång {job.job_id.slice(0, 8)} · {job.image_count} {plural(job.image_count, 'bild', 'bilder')}
                       </p>
                       <p className="text-xs text-slate-400">{timeAgo(job.created_at)}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     {job.garment_count != null && (
-                      <span className="hidden text-sm text-slate-500 sm:inline">
-                        {job.garment_count} garments
-                      </span>
+                      <span className="hidden text-sm text-slate-500 sm:inline">{job.garment_count} plagg</span>
                     )}
-                    <Badge tone={STATUS_TONE[job.status] ?? 'neutral'}>{job.status}</Badge>
+                    <Badge tone={STATUS_TONE[job.status] ?? 'neutral'}>{jobStatusLabel(job.status)}</Badge>
                   </div>
                 </Card>
               </Link>

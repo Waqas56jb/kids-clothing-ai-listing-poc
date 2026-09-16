@@ -1,9 +1,7 @@
-export function timeAgo(unixSeconds) {
-  const seconds = Math.max(0, Date.now() / 1000 - unixSeconds)
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  return `${Math.floor(seconds / 86400)}d ago`
+import { timeAgoSv } from './sv'
+
+export function timeAgo(value) {
+  return timeAgoSv(value)
 }
 
 export function summarizeJobs(jobs = []) {
@@ -28,21 +26,20 @@ export function trendSeries(jobs = []) {
     }))
 }
 
+const STATUS_NAME = { done: 'Klara', processing: 'Bearbetas', queued: 'I kö', error: 'Misslyckade' }
+
 export function statusSeries(jobs = []) {
-  const counts = { Completed: 0, Processing: 0, Queued: 0, Failed: 0 }
+  const counts = { done: 0, processing: 0, queued: 0, error: 0 }
   for (const job of jobs) {
-    if (job.status === 'done') counts.Completed += 1
-    else if (job.status === 'processing') counts.Processing += 1
-    else if (job.status === 'queued') counts.Queued += 1
-    else if (job.status === 'error') counts.Failed += 1
+    if (job.status in counts) counts[job.status] += 1
   }
   const colors = {
-    Completed: '#059669',
-    Processing: '#1d4fc7',
-    Queued: '#94a3b8',
-    Failed: '#e11d48',
+    done: '#059669',
+    processing: '#1d4fc7',
+    queued: '#94a3b8',
+    error: '#e11d48',
   }
   return Object.entries(counts)
     .filter(([, value]) => value > 0)
-    .map(([name, value]) => ({ name, value, fill: colors[name] }))
+    .map(([key, value]) => ({ name: STATUS_NAME[key], value, fill: colors[key] }))
 }

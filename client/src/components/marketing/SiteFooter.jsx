@@ -3,31 +3,32 @@ import { motion } from 'framer-motion'
 import { ArrowUpRight, Baby, Globe, Mail, Share2 } from 'lucide-react'
 import TiltCard from './TiltCard'
 import { LANDING_IMAGES } from './images'
+import { BRAND } from '../../lib/sv'
 
 const COLUMNS = [
   {
-    title: 'Product',
+    title: 'Miniplagg',
     links: [
-      { href: '#how-it-works', label: 'How it works' },
-      { href: '#showcase', label: 'Showcase' },
-      { href: '#pipeline', label: 'Pipeline' },
-      { href: '#features', label: 'Features' },
+      { to: '/marknad', label: 'Marknaden' },
+      { href: '#how-it-works', label: 'Så funkar det' },
+      { href: '#showcase', label: 'Plaggen' },
+      { href: '#features', label: 'Funktioner' },
     ],
   },
   {
-    title: 'Studio',
+    title: 'Sälja',
     links: [
-      { to: '/login', label: 'Sign in' },
-      { to: '/login?mode=signup', label: 'Create account' },
-      { to: '/dashboard', label: 'Seller dashboard' },
+      { to: '/login', label: 'Logga in' },
+      { to: '/login?mode=signup', label: 'Skapa konto' },
+      { to: '/dashboard', label: 'Säljarpanelen' },
     ],
   },
   {
-    title: 'Trust',
+    title: 'Trygghet',
     links: [
-      { href: '#features', label: 'Human review' },
-      { href: '#pipeline', label: 'Honest confidence' },
-      { href: '#top', label: 'Private batches' },
+      { href: '#features', label: 'Du granskar alltid' },
+      { href: '#pipeline', label: 'Ärliga säkerhetsnivåer' },
+      { href: '#top', label: 'Dina bilder är privata' },
     ],
   },
 ]
@@ -54,27 +55,28 @@ export default function SiteFooter() {
                 </span>
               </TiltCard>
               <div>
-                <p className="font-display text-3xl font-semibold tracking-tight text-white">Kids AI</p>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-white/40">Seller Studio</p>
+                <p className="font-display text-3xl font-semibold tracking-tight text-white">{BRAND}</p>
+                <p className="text-xs font-medium uppercase tracking-[0.22em] text-white/40">Begagnade barnkläder</p>
               </div>
             </div>
             <p className="mt-6 max-w-md text-base leading-relaxed text-white/60">
-              A calm listing studio for secondhand kidswear — detect, match, price, and publish with a human always in the loop.
+              Marknadsplatsen för begagnade barnkläder där AI:n gör grovjobbet – hittar, friläger, prissätter och skriver
+              annonsen – och säljaren alltid har sista ordet.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/login?mode=signup"
                 className="group inline-flex items-center gap-2 rounded-full bg-sand px-5 py-3 text-sm font-semibold text-ink transition hover:bg-white"
               >
-                Start free
+                Börja sälja gratis
                 <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </Link>
               <a
-                href="mailto:hello@kidsailisting.com"
+                href="mailto:hej@miniplagg.com"
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/8 hover:text-white"
               >
                 <Mail className="h-4 w-4" />
-                hello@kidsailisting.com
+                hej@miniplagg.com
               </a>
             </div>
           </div>
@@ -84,8 +86,8 @@ export default function SiteFooter() {
               <img src={LANDING_IMAGES.nursery} alt="" className="h-full w-full object-cover" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">Studio note</p>
-                <p className="mt-1 font-display text-2xl font-semibold text-white">AI suggests. You decide.</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">Vår princip</p>
+                <p className="mt-1 font-display text-2xl font-semibold text-white">AI:n föreslår. Du bestämmer.</p>
               </div>
             </div>
           </TiltCard>
@@ -121,7 +123,7 @@ export default function SiteFooter() {
         </motion.div>
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/10 py-8 sm:flex-row">
-          <p className="text-xs text-white/40">© {new Date().getFullYear()} Kids AI Listing. Crafted for sellers who care.</p>
+          <p className="text-xs text-white/40">© {new Date().getFullYear()} {BRAND}. Gjord för föräldrar som bryr sig.</p>
           <div className="flex items-center gap-2">
             <a
               href="https://instagram.com"
@@ -133,11 +135,9 @@ export default function SiteFooter() {
               <Share2 className="h-4 w-4" />
             </a>
             <a
-              href="https://linkedin.com"
-              target="_blank"
-              rel="noreferrer"
+              href="https://miniplagg.com"
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white"
-              aria-label="LinkedIn"
+              aria-label="Webbplats"
             >
               <Globe className="h-4 w-4" />
             </a>

@@ -5,6 +5,8 @@ import { AlertTriangle, ArrowLeft, Package, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { computeInitialGroups, mergeGroups, removeFromGroup, splitGroup } from '../../lib/groups'
+import { garmentImagePath } from '../../lib/garment'
+import { categoryLabel } from '../../lib/sv'
 import { approvePricing, getGroupPricing, updatePricing } from '../../lib/pricing'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -34,12 +36,12 @@ function GroupPricing({ jobId, group }) {
         pricing={pricing}
         itemCount={group.garmentIds.length}
         onApprove={async () => {
-          setPricing(await approvePricing(pricing.id, { actor: 'Seller' }))
-          toast.success('Bundle price accepted as the final price.')
+          setPricing(await approvePricing(pricing.id))
+          toast.success('Paketpriset är godkänt som slutpris.')
         }}
         onSave={async (payload) => {
-          setPricing(await updatePricing(pricing.id, { ...payload, actor: 'Seller' }))
-          toast.success('Custom bundle price saved.')
+          setPricing(await updatePricing(pricing.id, payload))
+          toast.success('Paketpriset är sparat.')
         }}
       />
     </div>
@@ -48,12 +50,8 @@ function GroupPricing({ jobId, group }) {
 
 function Thumb({ jobId, garment }) {
   return (
-    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-surface shadow-soft" title={garment.category}>
-      <img
-        src={fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)}
-        alt={garment.category}
-        className="h-full w-full object-contain p-1"
-      />
+    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-surface shadow-soft" title={categoryLabel(garment.category)}>
+      <img src={fileUrl(jobId, garmentImagePath(garment))} alt={categoryLabel(garment.category)} className="h-full w-full object-contain p-1" />
     </div>
   )
 }
@@ -87,7 +85,7 @@ export default function GroupsPage() {
       .catch((err) => {
         if (cancelled) return
         console.error(err)
-        setError(err.message || 'Could not load this batch')
+        setError(err.message || 'Kunde inte hämta omgången')
       })
     return () => {
       cancelled = true
@@ -102,19 +100,14 @@ export default function GroupsPage() {
     try {
       await patchWorkspace(jobId, { groups: { groups: nextGroups, ungrouped: nextUngrouped ?? ungrouped } })
     } catch (err) {
-      toast.error(err.message || 'Could not save groups')
+      toast.error(err.message || 'Kunde inte spara paketen')
     }
   }
 
   if (error) {
     return (
       <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
-        <EmptyState
-          icon={AlertTriangle}
-          title="Couldn't load this batch"
-          description={error}
-          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
-        />
+        <EmptyState icon={AlertTriangle} title="Kunde inte visa omgången" description={error} action={<Button onClick={() => setRetryKey((k) => k + 1)}>Försök igen</Button>} />
       </div>
     )
   }
@@ -132,20 +125,19 @@ export default function GroupsPage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
       <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to results
+        <ArrowLeft className="h-4 w-4" /> Tillbaka till resultaten
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Suggested Groups</h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Föreslagna paket</h1>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Items are grouped by size and category. Split, merge, or remove — every change is saved so admin sees the
-        same bundles.
+        Plaggen grupperas efter storlek och kategori. Dela, slå ihop eller ta bort – alla ändringar sparas.
       </p>
 
       <div className="mt-8 space-y-4">
         <AnimatePresence>
           {groups.length === 0 ? (
-            <EmptyState icon={Package} title="No group suggestions" description="Not enough similar items to suggest a bundle yet." />
+            <EmptyState icon={Package} title="Inga paketförslag" description="Det finns inte tillräckligt många liknande plagg för att föreslå ett paket." />
           ) : (
             groups.map((group) => (
               <motion.div
@@ -158,14 +150,14 @@ export default function GroupsPage() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-display text-base font-bold capitalize text-slate-800">
-                      {group.garmentIds.length} × {group.category.replace(/_/g, ' ')}
+                    <h3 className="font-display text-base font-bold text-slate-800">
+                      {group.garmentIds.length} × {categoryLabel(group.category)}
                     </h3>
-                    <p className="text-xs text-slate-400">Size: {group.size}</p>
+                    <p className="text-xs text-slate-400">Storlek: {group.size}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="secondary" onClick={() => persistGroups(splitGroup(groups, group.id))}>
-                      Split
+                      Dela upp
                     </Button>
                     {groups.length > 1 && (
                       <select
@@ -174,15 +166,15 @@ export default function GroupsPage() {
                         onChange={(event) => {
                           if (!event.target.value) return
                           persistGroups(mergeGroups(groups, group.id, event.target.value))
-                          toast.success('Groups merged.')
+                          toast.success('Paketen slogs ihop.')
                         }}
                       >
-                        <option value="">Merge into…</option>
+                        <option value="">Slå ihop med…</option>
                         {groups
                           .filter((g) => g.id !== group.id)
                           .map((g) => (
                             <option key={g.id} value={g.id}>
-                              {g.category.replace(/_/g, ' ')} ({g.size})
+                              {categoryLabel(g.category)} ({g.size})
                             </option>
                           ))}
                       </select>
@@ -199,11 +191,11 @@ export default function GroupsPage() {
                         <Thumb jobId={jobId} garment={garment} />
                         <button
                           onClick={() => {
-                          const next = removeFromGroup(groups, ungrouped, group.id, id)
-                          persistGroups(next.groups, next.ungrouped)
+                            const next = removeFromGroup(groups, ungrouped, group.id, id)
+                            persistGroups(next.groups, next.ungrouped)
                           }}
                           className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/70 text-white opacity-0 transition group-hover:opacity-100"
-                          aria-label="Remove from group"
+                          aria-label="Ta bort från paketet"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -221,8 +213,8 @@ export default function GroupsPage() {
 
       {ungrouped.length > 0 && (
         <div className="mt-10">
-          <h2 className="font-display text-lg font-bold text-slate-800">Ungrouped items ({ungrouped.length})</h2>
-          <p className="mt-1 text-sm text-slate-500">Listed individually — no matching bundle found.</p>
+          <h2 className="font-display text-lg font-bold text-slate-800">Plagg utan paket ({ungrouped.length})</h2>
+          <p className="mt-1 text-sm text-slate-500">Säljs var för sig – inget passande paket hittades.</p>
           <div className="mt-3 flex flex-wrap gap-3">
             {ungrouped.map((id) => (byId[id] ? <Thumb key={id} jobId={jobId} garment={byId[id]} /> : null))}
           </div>

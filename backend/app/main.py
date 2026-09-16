@@ -17,10 +17,11 @@ from app.auth import require_user
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db.startup()
+    jobs.warm_up_models_in_background()
     yield
 
 
-app = FastAPI(title="Kids Clothing AI Listing API", lifespan=lifespan)
+app = FastAPI(title="Miniplagg API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,18 +77,29 @@ async def serve_file(
     auth_header = authorization
     if not auth_header and token:
         auth_header = f"Bearer {token}"
-    user = auth_mod.resolve_user(auth_header)
-    if user is None:
-        raise HTTPException(status_code=401, detail="Sign in required")
-    job = jobs.get_job(job_id, access_token=user.get("access_token"))
-    if job is None or (user["role"] != "admin" and job.user_id != user["id"]):
-        raise HTTPException(status_code=404, detail="File not found")
     storage_path = f"{job_id}/{file_path}"
+    # Photos that belong to a published marketplace listing are public (the
+    # marketplace is browsable without an account); everything else stays
+    # private to the seller who uploaded it (and admins).
+    if not db.is_public_image(storage_path):
+        user = auth_mod.resolve_user(auth_header)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Du behöver logga in")
+        job = jobs.get_job(job_id, access_token=user.get("access_token"))
+        if job is None or (user["role"] != "admin" and job.user_id != user["id"]):
+            raise HTTPException(status_code=404, detail="Filen hittades inte")
     try:
         data, mime = blobstore.download_bytes(storage_path)
-        return Response(content=data, media_type=mime)
+        return Response(content=data, media_type=mime, headers={"Cache-Control": "public, max-age=86400"})
     except Exception as exc:
-        raise HTTPException(status_code=404, detail="File not found") from exc
+        # While a batch is still processing its crops only exist in the local
+        # scratch dir (they're uploaded to S3 when the run finishes) -- serve
+        # them from there so the progressive results can show images.
+        local = jobs.UPLOAD_ROOT / job_id / "out" / file_path
+        if local.is_file() and local.resolve().is_relative_to((jobs.UPLOAD_ROOT / job_id).resolve()):
+            mime = mimetypes.guess_type(str(local))[0] or "application/octet-stream"
+            return Response(content=local.read_bytes(), media_type=mime)
+        raise HTTPException(status_code=404, detail="Filen hittades inte") from exc
 
 
 @app.get("/api/me")
@@ -101,7 +113,7 @@ async def signup(body: dict[str, Any]):
     password = body.get("password") or ""
     full_name = (body.get("full_name") or "").strip() or None
     if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
+        raise HTTPException(status_code=400, detail="E-post och lösenord krävs")
     try:
         return auth_mod.register_user(email, password, full_name=full_name, role="seller")
     except ValueError as exc:
@@ -115,7 +127,7 @@ async def login(body: dict[str, Any]):
     email = (body.get("email") or "").strip()
     password = body.get("password") or ""
     if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
+        raise HTTPException(status_code=400, detail="E-post och lösenord krävs")
     try:
         return auth_mod.login_user(email, password)
     except ValueError as exc:
@@ -130,7 +142,12 @@ async def create_job(
     user: dict = Depends(require_user),
 ):
     if not images:
-        raise HTTPException(status_code=400, detail="No images uploaded")
+        raise HTTPException(status_code=400, detail="Inga bilder laddades upp")
+    if len(images) > jobs.MAX_IMAGES_PER_JOB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Max {jobs.MAX_IMAGES_PER_JOB} bilder per uppladdning – dela upp i flera omgångar.",
+        )
     files = [(image.filename or f"image_{i}.jpg", await image.read()) for i, image in enumerate(images)]
     try:
         job = jobs.create_job(files, user_id=user["id"], access_token=user.get("access_token"))
@@ -157,20 +174,23 @@ def _job_summary(job: jobs.Job) -> dict:
 def _load_job(job_id: str, user: dict) -> jobs.Job:
     job = jobs.get_job(job_id, access_token=user.get("access_token"))
     if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Omgången hittades inte")
     if user["role"] != "admin" and job.user_id != user["id"]:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Omgången hittades inte")
     return job
 
 
 def _job_payload(job: jobs.Job) -> dict:
     result = job.result.model_dump() if job.result else None
     workspace = job.workspace or db.get_workspace(job.id)
-    return {
+    payload = {
         **_job_summary(job),
         "result": workspace_mod.apply_to_result(result, workspace),
         "workspace": workspace,
     }
+    if job.status == "processing" and job.partial is not None:
+        payload["partial"] = job.partial.model_dump()
+    return payload
 
 
 @app.get("/api/jobs")
@@ -190,7 +210,7 @@ async def patch_workspace(job_id: str, body: dict[str, Any], user: Annotated[dic
     replace_keys = [key for key in ("groups",) if key in body]
     actor_patch = {key: value for key, value in body.items() if key in {"garment_edits", "match_decisions", "groups", "listings"}}
     if not actor_patch:
-        raise HTTPException(status_code=400, detail="Nothing to save")
+        raise HTTPException(status_code=400, detail="Inget att spara")
     workspace = db.merge_workspace(job.id, actor_patch, replace_keys=replace_keys)
     job.workspace = workspace
     return {"workspace": workspace, "result": _job_payload(job)["result"]}
@@ -207,7 +227,7 @@ async def job_pricing(job_id: str, user: Annotated[dict, Depends(require_user)])
 @app.get("/api/pricing")
 async def list_pricing(user: Annotated[dict, Depends(require_user)]):
     if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Endast admin")
     return workspace_mod.list_all_pricing()
 
 
@@ -228,7 +248,7 @@ async def approve_pricing(pricing_id: str, body: dict[str, Any] | None = None, u
 @app.post("/api/pricing/{pricing_id}/reject")
 async def reject_pricing(pricing_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
     if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Endast admin")
     return _pricing_action(pricing_id, "reject", user, body or {})
 
 
@@ -237,10 +257,178 @@ async def update_pricing(pricing_id: str, body: dict[str, Any], user: Annotated[
     return _pricing_action(pricing_id, "update", user, body)
 
 
+# ---------------------------------------------------------------------------
+# Publishing + public marketplace
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/jobs/{job_id}/publish")
+async def publish_job(job_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    job = _load_job(job_id, user)
+    if not job.result:
+        raise HTTPException(status_code=400, detail="Bearbetningen är inte klar än")
+    body = body or {}
+    garment_ids = body.get("garment_ids")
+    overrides = {str(k): int(v) for k, v in (body.get("prices") or {}).items() if v is not None}
+    payload = _job_payload(job)
+    workspace = payload["workspace"] or workspace_mod.seed_workspace(job.id, job.result)
+    seller_id = job.user_id or user["id"]
+    try:
+        listings = workspace_mod.publish_garments(
+            job.id, payload["result"], workspace, seller_id, garment_ids=garment_ids, price_overrides=overrides
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    job.workspace = db.get_workspace(job.id)
+    return {"listings": listings, "workspace": job.workspace}
+
+
+def _public_listing(listing: dict[str, Any], user: dict | None = None) -> dict[str, Any]:
+    data = dict(listing)
+    data["seller_name"] = (listing.get("seller_name") or "Säljare").split(" ")[0]
+    if user is not None:
+        data["is_mine"] = listing.get("seller_id") == user["id"]
+    return data
+
+
+def _optional_user(authorization: Annotated[str | None, Header()] = None) -> dict | None:
+    if not authorization:
+        return None
+    try:
+        return auth_mod.resolve_user(authorization)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@app.get("/api/marketplace/listings")
+async def marketplace_listings(
+    q: str | None = None,
+    category: str | None = None,
+    size: str | None = None,
+    condition: str | None = None,
+    min_price: int | None = None,
+    max_price: int | None = None,
+    sort: str = "newest",
+    limit: int = 60,
+    offset: int = 0,
+    user: dict | None = Depends(_optional_user),
+):
+    if not db.postgres_enabled():
+        raise HTTPException(status_code=503, detail="Databasen är inte konfigurerad")
+    rows = db.list_public_listings(
+        query=q,
+        category=category,
+        size=size,
+        condition=condition,
+        min_price=min_price,
+        max_price=max_price,
+        sort=sort,
+        limit=max(1, min(int(limit), 120)),
+        offset=max(0, int(offset)),
+    )
+    favorites = set(db.list_favorite_ids(user["id"])) if user else set()
+    items = []
+    for row in rows:
+        item = _public_listing(row, user)
+        item["is_favorite"] = row["id"] in favorites
+        items.append(item)
+    return {"items": items, "facets": db.listing_facets()}
+
+
+@app.get("/api/marketplace/listings/{listing_id}")
+async def marketplace_listing(listing_id: str, user: dict | None = Depends(_optional_user)):
+    listing = db.fetch_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    is_owner = bool(user) and listing.get("seller_id") == user["id"]
+    if listing.get("status") == "unpublished" and not is_owner and not (user and user.get("role") == "admin"):
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    item = _public_listing(listing, user)
+    item["is_favorite"] = bool(user) and listing["id"] in set(db.list_favorite_ids(user["id"]))
+    return item
+
+
+@app.patch("/api/marketplace/listings/{listing_id}")
+async def update_listing(listing_id: str, body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    listing = db.fetch_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    if listing.get("seller_id") != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Du kan bara ändra dina egna annonser")
+    if body.get("status") not in (None, "published", "sold", "unpublished"):
+        raise HTTPException(status_code=400, detail="Ogiltig status")
+    return _public_listing(db.update_listing(listing_id, body) or listing, user)
+
+
+@app.post("/api/marketplace/listings/{listing_id}/favorite")
+async def add_favorite(listing_id: str, user: Annotated[dict, Depends(require_user)]):
+    if not db.fetch_listing(listing_id):
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    db.add_favorite(user["id"], listing_id)
+    return {"ok": True, "is_favorite": True}
+
+
+@app.delete("/api/marketplace/listings/{listing_id}/favorite")
+async def remove_favorite(listing_id: str, user: Annotated[dict, Depends(require_user)]):
+    db.remove_favorite(user["id"], listing_id)
+    return {"ok": True, "is_favorite": False}
+
+
+@app.post("/api/marketplace/listings/{listing_id}/offers")
+async def create_offer(listing_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    listing = db.fetch_listing(listing_id)
+    if not listing or listing.get("status") != "published":
+        raise HTTPException(status_code=404, detail="Annonsen är inte tillgänglig")
+    if listing.get("seller_id") == user["id"]:
+        raise HTTPException(status_code=400, detail="Du kan inte lägga bud på din egen annons")
+    body = body or {}
+    kind = "buy" if body.get("kind") == "buy" else "offer"
+    amount = int(body.get("amount") or (listing.get("price") if kind == "buy" else 0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Ange ett giltigt belopp")
+    offer = db.create_offer(listing_id, user["id"], listing.get("seller_id"), kind, amount, (body.get("message") or "").strip() or None)
+    return offer
+
+
+@app.get("/api/me/offers")
+async def my_offers(user: Annotated[dict, Depends(require_user)]):
+    return db.list_offers(user["id"])
+
+
+@app.post("/api/offers/{offer_id}/{action}")
+async def respond_offer(offer_id: str, action: str, user: Annotated[dict, Depends(require_user)]):
+    offer = db.fetch_offer(offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Budet hittades inte")
+    status_map = {"accept": "accepted", "decline": "declined", "cancel": "cancelled"}
+    if action not in status_map:
+        raise HTTPException(status_code=400, detail="Ogiltig åtgärd")
+    if action == "cancel":
+        if offer.get("buyer_id") != user["id"]:
+            raise HTTPException(status_code=403, detail="Bara köparen kan dra tillbaka budet")
+    elif offer.get("seller_id") != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Bara säljaren kan svara på budet")
+    updated = db.update_offer_status(offer_id, status_map[action])
+    if action == "accept":
+        db.update_listing(offer["listing_id"], {"status": "sold"})
+    return updated
+
+
+@app.get("/api/me/favorites")
+async def my_favorites(user: Annotated[dict, Depends(require_user)]):
+    return [_public_listing(row, user) | {"is_favorite": True} for row in db.list_favorites(user["id"])]
+
+
+@app.get("/api/me/listings")
+async def my_listings(user: Annotated[dict, Depends(require_user)]):
+    rows = db.list_all_listings() if user.get("role") == "admin" else db.list_seller_listings(user["id"])
+    return [_public_listing(row, user) for row in rows]
+
+
 def _job_id_from_pricing(pricing_id: str) -> str:
     parts = unquote(pricing_id).split(":")
     if len(parts) < 3:
-        raise HTTPException(status_code=400, detail="Invalid pricing id")
+        raise HTTPException(status_code=400, detail="Ogiltigt pris-id")
     return parts[1]
 
 
@@ -252,4 +440,4 @@ def _pricing_action(pricing_id: str, action: str, user: dict, body: dict[str, An
     try:
         return workspace_mod.mutate_pricing(job_id, pricing_id, action, actor, body)
     except KeyError:
-        raise HTTPException(status_code=404, detail="Pricing record not found") from None
+        raise HTTPException(status_code=404, detail="Prisposten hittades inte") from None

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from ai_engine import pipeline as pipeline_mod
 from ai_engine.pipeline import run_pipeline
 from ai_engine.schemas import PipelineResult
 
@@ -16,6 +17,10 @@ from app import blobstore, db, workspace as workspace_mod
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_ROOT = BACKEND_ROOT / "uploads"
 OUTPUT_ROOT = BACKEND_ROOT / "job_outputs"
+
+# 20-30 photos per batch is the product target; 40 is the hard cap so one
+# oversized request can't tie up the single worker for an hour.
+MAX_IMAGES_PER_JOB = 40
 
 JobStatus = Literal["queued", "processing", "done", "error"]
 
@@ -35,9 +40,23 @@ class Job:
     access_token: str | None = field(default=None, repr=False)
     workspace: dict = field(default_factory=dict)
     scratch_dir: str | None = field(default=None, repr=False)
+    # Provisional per-detection results while the batch is still running,
+    # so the UI can show garments as they finish. In-memory only.
+    partial: PipelineResult | None = field(default=None, repr=False)
 
 
 _jobs: dict[str, Job] = {}
+_warm_thread: threading.Thread | None = None
+
+
+def warm_up_models_in_background() -> None:
+    """Load the detector/SAM/CLIP/OCR weights right after boot so the first
+    upload doesn't spend its first minute on cold model loading."""
+    global _warm_thread
+    if _warm_thread is not None:
+        return
+    _warm_thread = threading.Thread(target=pipeline_mod.warm_up, name="model-warmup", daemon=True)
+    _warm_thread.start()
 
 
 def _job_payload(job: Job) -> dict:
@@ -59,14 +78,14 @@ def _job_payload(job: Job) -> dict:
 def _persist(job: Job, required: bool = False) -> None:
     if not db.postgres_enabled():
         if required:
-            raise RuntimeError("Database is not configured")
+            raise RuntimeError("Databasen är inte konfigurerad")
         return
     try:
         db.upsert_job(_job_payload(job), access_token=job.access_token)
     except Exception as exc:  # noqa: BLE001 — surface on create/final, log on progress
         print(f"[jobs] failed to persist {job.id}: {exc}")
         if required:
-            raise RuntimeError(f"Could not save job to the database: {exc}") from exc
+            raise RuntimeError(f"Kunde inte spara omgången i databasen: {exc}") from exc
 
 
 def _job_from_row(row: dict) -> Job:
@@ -95,11 +114,11 @@ def _job_from_row(row: dict) -> Job:
 
 def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, access_token: str | None = None) -> Job:
     if not db.postgres_enabled():
-        raise RuntimeError("DATABASE_URL is not configured")
+        raise RuntimeError("Databasen är inte konfigurerad")
     if not db.storage_enabled():
-        raise RuntimeError("S3_BUCKET is not configured")
+        raise RuntimeError("Bildlagringen är inte konfigurerad")
     if not user_id:
-        raise RuntimeError("user_id is required so each seller only owns their own jobs")
+        raise RuntimeError("Du behöver logga in för att ladda upp")
     job_id = uuid.uuid4().hex[:12]
     # Scratch under the backend tree only. Durable copy = Postgres + S3.
     scratch = UPLOAD_ROOT / job_id
@@ -124,7 +143,7 @@ def create_job(files: list[tuple[str, bytes]], user_id: str | None = None, acces
     except Exception as exc:  # noqa: BLE001
         print(f"[jobs] original upload failed {job_id}: {exc}")
         job.status = "error"
-        job.error = f"Could not save images to storage: {exc}"
+        job.error = f"Kunde inte spara bilderna: {exc}"
         _persist(job, required=False)
         _jobs.pop(job_id, None)
         shutil.rmtree(scratch, ignore_errors=True)
@@ -156,6 +175,7 @@ def get_job(job_id: str, access_token: str | None = None) -> Job | None:
                 job.result = cached.result
                 job.status = cached.status
                 job.error = cached.error
+            job.partial = cached.partial
         if cached is not None:
             job.access_token = cached.access_token
             job.scratch_dir = cached.scratch_dir
@@ -208,19 +228,32 @@ def _run_job(job: Job, input_dir: Path) -> None:
     output_dir = UPLOAD_ROOT / job.id / "out"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    last_persist = 0.0
+
     def on_progress(stage: str, current: int, total: int) -> None:
+        nonlocal last_persist
         job.stage = stage
         job.current = current
         job.total = total
-        _persist(job)
+        # Progress can tick many times a second with parallel workers; the
+        # in-memory job is what the API reads, so only touch Postgres every
+        # couple of seconds (and always on stage boundaries).
+        now = time.time()
+        if current in (0, total) or now - last_persist > 2.0:
+            last_persist = now
+            _persist(job)
+
+    def on_partial(snapshot: PipelineResult) -> None:
+        job.partial = snapshot
 
     try:
-        job.result = run_pipeline(input_dir, output_dir, on_progress=on_progress)
+        job.result = run_pipeline(input_dir, output_dir, on_progress=on_progress, on_partial=on_partial)
+        job.partial = None
         try:
             blobstore.upload_tree(job.id, output_dir, "artifact")
         except Exception as exc:  # noqa: BLE001
             print(f"[jobs] output upload failed {job.id}: {exc}")
-            raise RuntimeError(f"Could not save outputs to S3: {exc}") from exc
+            raise RuntimeError(f"Kunde inte spara resultatbilderna: {exc}") from exc
         job.status = "done"
         # Must land in Postgres — this is the seller's permanent interpretation record.
         _persist(job, required=True)

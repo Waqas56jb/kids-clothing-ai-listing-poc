@@ -18,17 +18,18 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
+import { BRAND } from '../lib/sv'
 
 const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://localhost:5173' : 'https://miniplagg.com')
 
 const NAV_LINKS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/jobs', label: 'Processing Jobs', icon: Settings2 },
-  { to: '/review-queue', label: 'Review Queue', icon: Search },
-  { to: '/groups', label: 'Groups & Packages', icon: Package },
-  { to: '/listings', label: 'Listings', icon: Tag },
-  { to: '/pricing', label: 'Pricing Engine', icon: Banknote },
+  { to: '/', label: 'Översikt', icon: LayoutDashboard, end: true },
+  { to: '/projects', label: 'Projekt', icon: FolderKanban },
+  { to: '/jobs', label: 'Bearbetningsjobb', icon: Settings2 },
+  { to: '/review-queue', label: 'Granskningskö', icon: Search },
+  { to: '/groups', label: 'Grupper & paket', icon: Package },
+  { to: '/listings', label: 'Annonser', icon: Tag },
+  { to: '/pricing', label: 'Prismotor', icon: Banknote },
 ]
 
 function useCollapsed(key) {
@@ -82,8 +83,8 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
           </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate font-display text-lg font-semibold text-white">Console</p>
-              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-brand-200">Ops & review</p>
+              <p className="truncate font-display text-lg font-semibold text-white">{BRAND}</p>
+              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-brand-200">Adminpanel</p>
             </div>
           )}
         </div>
@@ -91,7 +92,7 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
           type="button"
           onClick={onToggle}
           className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl text-brand-100 hover:bg-white/10 hover:text-white lg:flex"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Visa sidomenyn' : 'Fäll ihop sidomenyn'}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -119,18 +120,20 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
         )}
         <a
           href={CLIENT_URL}
+          title={collapsed ? 'Säljarvy' : undefined}
           className={`flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-brand-200 hover:bg-white/10 hover:text-white ${collapsed ? 'justify-center px-0' : ''}`}
         >
           <ArrowLeft className="h-4 w-4" />
-          {!collapsed && 'Seller view'}
+          {!collapsed && 'Säljarvy'}
         </a>
         <button
           type="button"
           onClick={signOut}
+          title={collapsed ? 'Logga ut' : undefined}
           className={`flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-brand-200 hover:bg-white/10 hover:text-white ${collapsed ? 'justify-center px-0' : ''}`}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && 'Log out'}
+          {!collapsed && 'Logga ut'}
         </button>
       </div>
     </>
@@ -171,7 +174,7 @@ export default function AdminLayout() {
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl text-brand-100 hover:bg-white/10"
-                aria-label="Close menu"
+                aria-label="Stäng menyn"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -187,11 +190,12 @@ export default function AdminLayout() {
             type="button"
             onClick={() => setMobileOpen(true)}
             className="flex h-11 w-11 items-center justify-center rounded-2xl text-ink hover:bg-sand"
-            aria-label="Open menu"
+            aria-label="Öppna menyn"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-display text-lg font-semibold text-ink">Admin console</span>
+          <span className="font-display text-lg font-semibold text-ink">{BRAND}</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Adminpanel</span>
         </header>
 
         <motion.main

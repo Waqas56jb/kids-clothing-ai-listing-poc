@@ -64,8 +64,10 @@ def register_user(email: str, password: str, full_name: str | None = None, role:
     if not db.postgres_enabled():
         raise RuntimeError("DATABASE_URL is not set")
     email = email.strip().lower()
+    if len(password) < 6:
+        raise ValueError("Lösenordet måste vara minst 6 tecken")
     if db.fetch_profile_by_email(email):
-        raise ValueError("Email already registered")
+        raise ValueError("Det finns redan ett konto med den e-postadressen")
     profile = db.create_profile(email, hash_password(password), full_name=full_name, role=role)
     token = issue_token(profile)
     return {"access_token": token, "user": _public_profile(profile), "profile": _public_profile(profile)}
@@ -76,7 +78,7 @@ def login_user(email: str, password: str) -> dict[str, Any]:
         raise RuntimeError("DATABASE_URL is not set")
     profile = db.fetch_profile_by_email(email)
     if not profile or not verify_password(password, profile.get("password_hash")):
-        raise ValueError("Invalid email or password")
+        raise ValueError("Fel e-postadress eller lösenord")
     token = issue_token(profile)
     return {"access_token": token, "user": _public_profile(profile), "profile": _public_profile(profile)}
 
@@ -99,8 +101,8 @@ def resolve_user(authorization: str | None) -> dict[str, Any] | None:
 
 def require_user(authorization: Annotated[str | None, Header()] = None) -> dict[str, Any]:
     if not db.postgres_enabled():
-        raise HTTPException(status_code=503, detail="Database is not configured")
+        raise HTTPException(status_code=503, detail="Databasen är inte konfigurerad")
     user = resolve_user(authorization)
     if user is None:
-        raise HTTPException(status_code=401, detail="Sign in required")
+        raise HTTPException(status_code=401, detail="Du behöver logga in")
     return user

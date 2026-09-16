@@ -98,7 +98,7 @@ def upload_tree(job_id: str, local_dir: Path, kind_for: str) -> list[str]:
         upload_bytes(storage_path, file_path.read_bytes())
         kind = kind_for
         name = relative.lower()
-        if "/masks/" in f"/{name}" or name.endswith("_masked.png"):
+        if "/masks/" in f"/{name}" or "/cutouts/" in f"/{name}" or name.endswith("_masked.png"):
             kind = "mask"
         elif "/crops/" in f"/{name}" or name.endswith("_bbox.png"):
             kind = "crop"

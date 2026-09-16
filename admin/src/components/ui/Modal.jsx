@@ -25,7 +25,7 @@ export default function Modal({ open, onClose, title, children, footer }) {
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close"
+                aria-label="Stäng"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-4 w-4" />

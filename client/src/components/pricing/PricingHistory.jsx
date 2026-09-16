@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { History } from 'lucide-react'
 import { getPricingHistory } from '../../lib/pricing'
+import { formatDate } from '../../lib/sv'
 
 export default function PricingHistory({ pricingId }) {
   const [entries, setEntries] = useState(null)
 
   useEffect(() => {
     let active = true
-    getPricingHistory(pricingId).then((list) => {
-      if (active) setEntries(list)
-    })
+    getPricingHistory(pricingId)
+      .then((list) => {
+        if (active) setEntries(list)
+      })
+      .catch(() => {
+        if (active) setEntries([])
+      })
     return () => {
       active = false
     }
@@ -20,10 +25,10 @@ export default function PricingHistory({ pricingId }) {
   return (
     <div>
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-        <History className="h-4 w-4" /> Pricing History
+        <History className="h-4 w-4" /> Prishistorik
       </div>
       {entries.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-400">No price changes yet -- still at the AI-calculated recommendation.</p>
+        <p className="mt-2 text-sm text-slate-400">Inga prisändringar än – fortfarande AI:s förslag.</p>
       ) : (
         <ol className="mt-3 space-y-3 border-l-2 border-slate-100 pl-4">
           {[...entries].reverse().map((entry) => (
@@ -32,13 +37,13 @@ export default function PricingHistory({ pricingId }) {
               <p className="text-sm text-slate-700">
                 <strong>{entry.changedBy}</strong>{' '}
                 {entry.newPrice == null
-                  ? 'rejected the recommendation'
+                  ? 'avvisade förslaget'
                   : entry.previousPrice != null
-                    ? `changed price from ${entry.previousPrice} to ${entry.newPrice} SEK`
-                    : `set the price to ${entry.newPrice} SEK`}
+                    ? `ändrade priset från ${entry.previousPrice} till ${entry.newPrice} kr`
+                    : `satte priset till ${entry.newPrice} kr`}
               </p>
               {entry.reason && <p className="text-xs text-slate-400">{entry.reason}</p>}
-              <p className="text-xs text-slate-300">{new Date(entry.date).toLocaleString()}</p>
+              <p className="text-xs text-slate-300">{formatDate(entry.date)}</p>
             </li>
           ))}
         </ol>

@@ -4,7 +4,9 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, RotateCcw, Tag } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
+import { garmentImagePath } from '../../lib/garment'
 import { generateDescription, generateTitle } from '../../lib/listing'
+import { categoryLabel, listingStatusLabel } from '../../lib/sv'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -24,7 +26,7 @@ function ListingCard({ jobId, garment, index, listing }) {
     try {
       await patchWorkspace(jobId, { listings: { [garment.id]: payload } })
     } catch (err) {
-      toast.error(err.message || 'Could not save listing')
+      toast.error(err.message || 'Kunde inte spara annonsen')
     }
   }
 
@@ -38,8 +40,8 @@ function ListingCard({ jobId, garment, index, listing }) {
     >
       <div className="aspect-square w-full overflow-hidden rounded-xl bg-surface sm:w-[140px]">
         <img
-          src={fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)}
-          alt={garment.category}
+          src={fileUrl(jobId, garmentImagePath(garment))}
+          alt={categoryLabel(garment.category)}
           className="h-full w-full object-contain p-2"
         />
       </div>
@@ -50,15 +52,21 @@ function ListingCard({ jobId, garment, index, listing }) {
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             onBlur={() => saveListing()}
+            aria-label="Annonsrubrik"
             className="w-full rounded-lg border border-transparent bg-transparent font-display text-base font-bold text-slate-800 outline-none transition focus:border-slate-200 focus:bg-slate-50 focus:px-2 focus:py-1"
           />
-          {approved ? <Badge tone="good">Approved</Badge> : <Badge tone="neutral">Draft</Badge>}
+          {approved ? (
+            <Badge tone="good">{listingStatusLabel('approved')}</Badge>
+          ) : (
+            <Badge tone="neutral">{listingStatusLabel('draft')}</Badge>
+          )}
         </div>
         <textarea
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           onBlur={() => saveListing()}
           rows={4}
+          aria-label="Annonsbeskrivning"
           className="w-full resize-none rounded-xl border border-slate-200 bg-surface/50 p-3 text-sm text-slate-600 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100"
         />
         <div className="flex gap-2">
@@ -67,10 +75,10 @@ function ListingCard({ jobId, garment, index, listing }) {
             onClick={async () => {
               setApproved(true)
               await saveListing({ status: 'approved' })
-              toast.success('Listing approved and saved.')
+              toast.success('Annonsen är godkänd och sparad.')
             }}
           >
-            Approve listing
+            Godkänn annons
           </Button>
           <Button
             size="sm"
@@ -84,7 +92,7 @@ function ListingCard({ jobId, garment, index, listing }) {
               await saveListing({ title: nextTitle, description: nextDescription, status: 'draft' })
             }}
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Reset
+            <RotateCcw className="h-3.5 w-3.5" /> Återställ
           </Button>
         </div>
       </div>
@@ -116,18 +124,18 @@ export default function ListingPreviewPage() {
   return (
     <div className="max-w-3xl">
       <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to project
+        <ArrowLeft className="h-4 w-4" /> Tillbaka till projektet
       </Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Listing Review</h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Granska annonser</h1>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Same listing copy the seller saved. Edit and approve on their behalf — it writes to the database.
+        Samma annonstext som säljaren har sparat. Redigera och godkänn å säljarens vägnar – ändringarna sparas.
       </p>
 
       <div className="mt-8 space-y-4">
         {garments.length === 0 ? (
-          <EmptyState icon={Tag} title="Nothing to list" description="No garments were detected in this batch." />
+          <EmptyState icon={Tag} title="Inget att annonsera" description="Inga plagg hittades i den här omgången." />
         ) : (
           garments.map((garment, index) => (
             <ListingCard key={garment.id} jobId={jobId} garment={garment} index={index} listing={listings[garment.id]} />

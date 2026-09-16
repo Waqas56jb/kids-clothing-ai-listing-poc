@@ -3,33 +3,49 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from ai_engine.listing_copy import template_description, template_title
 from ai_engine.schemas import PipelineResult
 
 from app import db
 
 EDITABLE_FIELDS = ("category", "brand", "size", "color", "condition", "gender", "defects")
 
+# Illustrative base price ranges (SEK) by category. Pricing is always shown
+# to the seller as an AI suggestion they accept, edit, or reject.
 CATEGORY_BASE = {
     "bodysuit": (30, 50),
     "onesie": (30, 50),
     "romper": (35, 60),
     "sleeper": (35, 60),
+    "pajamas": (35, 60),
     "dress": (50, 90),
-    "jacket": (80, 150),
-    "coat": (90, 160),
-    "sweater": (50, 90),
-    "cardigan": (45, 80),
-    "shirt": (30, 60),
-    "blouse": (30, 60),
+    "skirt": (30, 55),
     "t-shirt": (25, 45),
     "top": (25, 45),
+    "shirt": (30, 60),
+    "blouse": (30, 60),
+    "sweater": (50, 90),
+    "hoodie": (50, 90),
+    "sweatshirt": (45, 80),
+    "cardigan": (45, 80),
+    "jacket": (80, 150),
+    "coat": (90, 160),
+    "vest": (40, 70),
     "trousers": (30, 55),
     "pants": (30, 55),
+    "jeans": (35, 65),
+    "leggings": (25, 45),
     "shorts": (25, 45),
-    "skirt": (30, 55),
+    "overalls": (60, 120),
+    "socks": (10, 25),
+    "tights": (15, 30),
     "hat": (15, 30),
     "beanie": (15, 30),
-    "vest": (40, 70),
+    "mittens": (15, 30),
+    "scarf": (15, 35),
+    "shoes": (60, 150),
+    "swimwear": (30, 60),
+    "accessory": (15, 40),
     "default": (30, 60),
 }
 
@@ -56,11 +72,11 @@ def _round5(value: float) -> int:
 def compute_groups(garments: list[dict[str, Any]]) -> dict[str, Any]:
     by_key: dict[str, dict[str, Any]] = {}
     for garment in garments:
-        key = f"{garment.get('size') or 'unspecified size'}|{garment.get('category')}"
+        key = f"{garment.get('size') or 'okänd storlek'}|{garment.get('category')}"
         if key not in by_key:
             by_key[key] = {
                 "id": key,
-                "size": garment.get("size") or "Unspecified size",
+                "size": garment.get("size") or "Okänd storlek",
                 "category": garment.get("category"),
                 "garmentIds": [],
             }
@@ -76,27 +92,11 @@ def compute_groups(garments: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def generate_title(garment: dict[str, Any]) -> str:
-    def title(text: str) -> str:
-        return str(text).replace("_", " ").title()
-
-    parts = [garment.get("brand"), garment.get("color"), title(garment.get("category") or "item")]
-    parts = [part for part in parts if part]
-    return " ".join(parts) if parts else f"Kids {title(garment.get('category') or 'item')}"
+    return garment.get("listing_title") or template_title(garment)
 
 
 def generate_description(garment: dict[str, Any]) -> str:
-    lines = []
-    if garment.get("brand"):
-        lines.append(f"Brand: {garment['brand']}")
-    if garment.get("size"):
-        lines.append(f"Size: {garment['size']}")
-    if garment.get("color"):
-        lines.append(f"Color: {garment['color']}")
-    condition = "please verify — AI flagged possible wear" if garment.get("defects") else (garment.get("condition") or "good")
-    lines.append(f"Condition: {condition}")
-    if garment.get("gender"):
-        lines.append(f"Gender: {garment['gender']}")
-    return f"{generate_title(garment)}, in {condition} pre-loved condition.\n\n" + "\n".join(lines)
+    return garment.get("listing_description") or template_description(garment)
 
 
 def _mock_price(attrs: dict[str, Any]) -> dict[str, Any]:
@@ -148,7 +148,7 @@ def _garment_pricing(job_id: str, garment: dict[str, Any]) -> dict[str, Any]:
         "jobId": job_id,
         "currency": "SEK",
         **computed,
-        "reason": "Estimated from category, brand presence, and condition.",
+        "reason": "Uppskattat utifrån kategori, märke och skick.",
         "finalPrice": None,
         "adjustedBy": None,
         "adjustedAt": None,
@@ -184,7 +184,7 @@ def _group_pricing(job_id: str, group: dict[str, Any]) -> dict[str, Any]:
         "recommendedPrice": recommended,
         "confidence": computed["confidence"],
         "status": computed["status"],
-        "reason": "Estimated bundle price from category, size, and item count.",
+        "reason": "Uppskattat paketpris utifrån kategori, storlek och antal plagg.",
         "finalPrice": None,
         "adjustedBy": None,
         "adjustedAt": None,
@@ -266,11 +266,11 @@ def mutate_pricing(job_id: str, pricing_id: str, action: str, actor: str, payloa
     if action == "approve":
         record["status"] = "approved"
         record["finalPrice"] = record.get("recommendedPrice")
-        reason = "Approved AI recommendation"
+        reason = "Godkände AI:s prisförslag"
     elif action == "reject":
         record["status"] = "rejected"
         record["finalPrice"] = None
-        reason = payload.get("note") or "Rejected AI recommendation"
+        reason = payload.get("note") or "Avvisade AI:s prisförslag"
     else:
         if payload.get("minPrice") is not None:
             record["minPrice"] = payload["minPrice"]
@@ -279,7 +279,7 @@ def mutate_pricing(job_id: str, pricing_id: str, action: str, actor: str, payloa
         if payload.get("finalPrice") is not None:
             record["finalPrice"] = payload["finalPrice"]
         record["status"] = "manually_adjusted"
-        reason = payload.get("note") or "Manual price adjustment"
+        reason = payload.get("note") or "Manuell prisjustering"
     record["adjustedBy"] = actor
     record["adjustedAt"] = now
     if payload.get("note"):
@@ -308,3 +308,79 @@ def list_all_pricing() -> list[dict[str, Any]]:
         workspace = dict(row.get("workspace") or {})
         items.extend((workspace.get("pricing") or {}).values())
     return items
+
+
+def _garment_image_paths(garment: dict[str, Any]) -> tuple[list[str], str | None]:
+    """All distinct image paths for a garment (cover first), never inventing
+    a cutout that didn't pass the quality gate."""
+    paths: list[str] = []
+    cover = garment.get("display_image")
+    if cover:
+        paths.append(cover)
+    for variant in garment.get("image_variants") or []:
+        for key in ("display", "crop", "original"):
+            path = variant.get(key)
+            if path and path not in paths:
+                paths.append(path)
+    if not paths:
+        for det_id in garment.get("detection_ids") or []:
+            paths.append(f"debug/masks/{det_id}_masked.png")
+        cover = paths[0] if paths else None
+    return paths, cover
+
+
+def publish_garments(
+    job_id: str,
+    result: dict[str, Any],
+    workspace: dict[str, Any],
+    seller_id: str,
+    garment_ids: list[str] | None = None,
+    price_overrides: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Turn reviewed garments into public marketplace listings.
+
+    The listing snapshot uses the seller's edited attributes, their edited
+    Swedish title/description, and the final price (a manual/approved price
+    first, the AI recommendation only as a fallback the seller has seen)."""
+    price_overrides = price_overrides or {}
+    listings_ws = dict(workspace.get("listings") or {})
+    pricing = workspace.get("pricing") or {}
+    wanted = set(garment_ids) if garment_ids else None
+    published: list[dict[str, Any]] = []
+
+    for garment in result.get("garments") or []:
+        gid = garment.get("id")
+        if wanted is not None and gid not in wanted:
+            continue
+        listing_ws = dict(listings_ws.get(gid) or {})
+        price_record = pricing.get(f"garment:{job_id}:{gid}") or {}
+        price = price_overrides.get(gid)
+        if price is None:
+            price = price_record.get("finalPrice") or price_record.get("recommendedPrice") or 0
+        images, cover = _garment_image_paths(garment)
+        row = db.insert_listing(
+            {
+                "job_id": job_id,
+                "garment_id": gid,
+                "seller_id": seller_id,
+                "title": listing_ws.get("title") or generate_title(garment),
+                "description": listing_ws.get("description") or generate_description(garment),
+                "category": garment.get("category"),
+                "brand": garment.get("brand"),
+                "size": garment.get("size"),
+                "color": garment.get("color"),
+                "condition": garment.get("condition"),
+                "gender": garment.get("gender"),
+                "defects": garment.get("defects"),
+                "price": int(price),
+                "images": [f"{job_id}/{path}" for path in images],
+                "cover_image": f"{job_id}/{cover}" if cover else None,
+                "status": "published",
+            }
+        )
+        listing_ws.update({"status": "published", "listing_id": row["id"], "price": int(price)})
+        listings_ws[gid] = listing_ws
+        published.append(row)
+
+    db.set_workspace(job_id, {**workspace, "listings": listings_ws})
+    return published

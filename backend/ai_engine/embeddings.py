@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 from PIL import Image
 
@@ -7,17 +9,21 @@ from ai_engine.config import SETTINGS
 
 _model = None
 _preprocess = None
+_lock = threading.Lock()
 
 
 def _load() -> tuple:
     global _model, _preprocess
     if _model is None:
-        import open_clip
+        with _lock:
+            if _model is None:
+                import open_clip
 
-        _model, _, _preprocess = open_clip.create_model_and_transforms(
-            SETTINGS.clip_model_name, pretrained=SETTINGS.clip_pretrained
-        )
-        _model.eval()
+                model, _, preprocess = open_clip.create_model_and_transforms(
+                    SETTINGS.clip_model_name, pretrained=SETTINGS.clip_pretrained
+                )
+                model.eval()
+                _model, _preprocess = model, preprocess
     return _model, _preprocess
 
 
@@ -29,8 +35,8 @@ def embed_garment(image: Image.Image) -> np.ndarray:
     import torch
 
     model, preprocess = _load()
-    tensor = preprocess(image).unsqueeze(0)
-    with torch.no_grad():
+    tensor = preprocess(image.convert("RGB")).unsqueeze(0)
+    with _lock, torch.no_grad():
         features = model.encode_image(tensor)
         features = features / features.norm(dim=-1, keepdim=True)
     return features.squeeze(0).cpu().numpy()

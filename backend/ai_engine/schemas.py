@@ -5,6 +5,48 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+# Canonical category keys the vision model must choose from. Keeping these as
+# stable English keys (not free text) is what lets pricing rules, grouping,
+# matching vetoes, and the Swedish UI labels all agree on one vocabulary.
+CATEGORY_KEYS = [
+    "bodysuit",
+    "onesie",
+    "romper",
+    "sleeper",
+    "pajamas",
+    "dress",
+    "skirt",
+    "t-shirt",
+    "top",
+    "shirt",
+    "blouse",
+    "sweater",
+    "hoodie",
+    "sweatshirt",
+    "cardigan",
+    "jacket",
+    "coat",
+    "vest",
+    "trousers",
+    "jeans",
+    "leggings",
+    "shorts",
+    "overalls",
+    "socks",
+    "tights",
+    "hat",
+    "beanie",
+    "mittens",
+    "scarf",
+    "shoes",
+    "swimwear",
+    "accessory",
+    "other",
+    "not_a_garment",
+]
+
+CONDITION_KEYS = ["new", "like new", "good", "fair", "worn", "damaged"]
+
 
 class BBox(BaseModel):
     x1: float
@@ -64,6 +106,25 @@ class MatchStatus(str, Enum):
     NEEDS_REVIEW = "needs_review"
 
 
+class DetectionImages(BaseModel):
+    """Every image variant we have for one detection, as paths relative to
+    the job's file root (served via `/files/{job_id}/...`).
+
+    `display` is the one the UI should show by default: the clean cutout
+    when the mask passed quality checks, otherwise the untouched crop from
+    the seller's own photo -- the AI is never allowed to make the seller's
+    photo look worse."""
+
+    detection_id: str
+    image_id: str
+    original: str
+    crop: str
+    cutout: Optional[str] = None
+    display: str
+    display_kind: str = "original"  # "cutout" | "original"
+    cutout_rejected_reason: Optional[str] = None
+
+
 class Garment(BaseModel):
     id: str
     category: str
@@ -78,6 +139,11 @@ class Garment(BaseModel):
     detection_ids: list[str]
     match_confidence: float
     match_status: MatchStatus
+    image_variants: list[DetectionImages] = Field(default_factory=list)
+    display_image: Optional[str] = None
+    original_image: Optional[str] = None
+    listing_title: Optional[str] = None
+    listing_description: Optional[str] = None
 
 
 class PipelineResult(BaseModel):
@@ -85,3 +151,5 @@ class PipelineResult(BaseModel):
     total_detections: int
     total_images: int
     notes: list[str] = Field(default_factory=list)
+    partial: bool = False
+    processed_detections: int = 0

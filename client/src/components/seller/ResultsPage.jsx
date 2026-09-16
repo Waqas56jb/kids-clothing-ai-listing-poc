@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Info, Link2, Package, PackageX, Tag } from 'lucide-react'
 import { getJob } from '../../api'
+import { plural } from '../../lib/sv'
 import GarmentCard from './GarmentCard'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -36,17 +37,16 @@ export default function ResultsPage() {
         .then((data) => {
           if (cancelled) return
           if (!data?.result && data?.status === 'error') {
-            setError(data.error || 'This batch failed while processing.')
+            setError(data.error || 'Den här omgången misslyckades under bearbetningen.')
             setLoading(false)
             return
           }
           if (!data?.result) {
             if (data?.status === 'processing' || data?.status === 'queued') {
-              setError(null)
-              setLoading(true)
+              navigate(`/processing/${jobId}`, { replace: true })
               return
             }
-            setError('No results yet for this batch. Open Dashboard and open it again once processing finishes.')
+            setError('Inga resultat för den här omgången än. Gå till översikten och öppna den igen när bearbetningen är klar.')
             setLoading(false)
             return
           }
@@ -56,47 +56,33 @@ export default function ResultsPage() {
         .catch((err) => {
           if (cancelled) return
           console.error(err)
-          const message = err.message || 'Could not load this batch'
+          const message = err.message || 'Kunde inte hämta omgången'
           setError(
-            /not found|sign in/i.test(message)
-              ? 'This batch is not available on your account. Open Dashboard to see your saved batches.'
+            /not found|hittades inte|logga in/i.test(message)
+              ? 'Den här omgången finns inte på ditt konto. Gå till översikten för att se dina sparade omgångar.'
               : message,
           )
           setLoading(false)
         })
 
     load()
-    // While processing, keep polling so a slow interpretation still lands from Postgres.
-    const poll = setInterval(() => {
-      if (cancelled) return
-      getJob(jobId)
-        .then((data) => {
-          if (cancelled || !data?.result) return
-          setResult(data.result)
-          setLoading(false)
-          setError(null)
-        })
-        .catch(() => {})
-    }, 4000)
-
     return () => {
       cancelled = true
-      clearInterval(poll)
     }
-  }, [jobId])
+  }, [jobId, navigate])
 
   if (error) {
     return (
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
         <EmptyState
           icon={AlertTriangle}
-          title="Couldn't load this batch"
+          title="Kunde inte visa omgången"
           description={error}
           action={
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => navigate('/dashboard')}>Go to dashboard</Button>
+              <Button onClick={() => navigate('/dashboard')}>Till översikten</Button>
               <Button variant="secondary" onClick={() => navigate('/upload')}>
-                New upload
+                Ny uppladdning
               </Button>
             </div>
           }
@@ -130,16 +116,21 @@ export default function ResultsPage() {
       <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
         <div>
           <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">
-            {garments.length} Garment{garments.length === 1 ? '' : 's'} Found
+            {garments.length} {plural(garments.length, 'plagg hittat', 'plagg hittade')}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            from {result.total_images} photo{result.total_images > 1 ? 's' : ''} · {result.total_detections}{' '}
-            detection{result.total_detections === 1 ? '' : 's'}
+            från {result.total_images} {plural(result.total_images, 'bild', 'bilder')} · {result.total_detections}{' '}
+            {plural(result.total_detections, 'detektion', 'detektioner')}
           </p>
         </div>
-        <Button variant="secondary" onClick={() => navigate('/upload')}>
-          Start new batch
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => navigate(`/listings/${jobId}`)}>
+            <Tag className="h-4 w-4" /> Granska & publicera annonser
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/upload')}>
+            Ny omgång
+          </Button>
+        </div>
       </div>
 
       {garments.length > 0 && (
@@ -148,28 +139,28 @@ export default function ResultsPage() {
             to={`/matching/${jobId}`}
             className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
           >
-            <Link2 className="h-4 w-4" /> Review matching
+            <Link2 className="h-4 w-4" /> Granska matchningar
           </Link>
           <Link
             to={`/groups/${jobId}`}
             className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
           >
-            <Package className="h-4 w-4" /> Suggested groups
+            <Package className="h-4 w-4" /> Föreslagna paket
           </Link>
           <Link
             to={`/listings/${jobId}`}
             className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
           >
-            <Tag className="h-4 w-4" /> Listing preview
+            <Tag className="h-4 w-4" /> Annonser
           </Link>
         </div>
       )}
 
       <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
-        <SummaryPill label="high confidence" count={counts.high_confidence ?? 0} tone="good" />
-        <SummaryPill label="medium confidence" count={counts.medium_confidence ?? 0} tone="ok" />
-        <SummaryPill label="need review" count={counts.needs_review ?? 0} tone="bad" />
-        <SummaryPill label="possible damage flagged" count={flaggedForDamage} tone="ok" />
+        <SummaryPill label="med hög säkerhet" count={counts.high_confidence ?? 0} tone="good" />
+        <SummaryPill label="med medel säkerhet" count={counts.medium_confidence ?? 0} tone="ok" />
+        <SummaryPill label="behöver granskas" count={counts.needs_review ?? 0} tone="bad" />
+        <SummaryPill label="med möjligt slitage" count={flaggedForDamage} tone="ok" />
       </div>
 
       {flaggedForDamage > 0 && (
@@ -180,9 +171,8 @@ export default function ResultsPage() {
         >
           <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} />
           <span>
-            {flaggedForDamage} item{flaggedForDamage > 1 ? 's' : ''} {flaggedForDamage > 1 ? 'have' : 'has'} possible
-            damage flagged by AI — this is a suggestion, not a verdict. Please check each one against the actual
-            garment before publishing.
+            AI:n har noterat möjligt slitage på {flaggedForDamage} {plural(flaggedForDamage, 'plagg', 'plagg')} – det är
+            ett förslag, inte ett omdöme. Kontrollera plagget innan du publicerar.
           </span>
         </motion.div>
       )}
@@ -199,12 +189,14 @@ export default function ResultsPage() {
       )}
 
       {garments.length === 0 ? (
-        <EmptyState
-          icon={PackageX}
-          title="No garments detected"
-          description="AI couldn't confidently detect any garments in these photos."
-          action={<Button onClick={() => navigate('/upload')}>Try another batch</Button>}
-        />
+        <div className="mt-8">
+          <EmptyState
+            icon={PackageX}
+            title="Inga plagg hittades"
+            description="AI:n kunde inte hitta några plagg i de här bilderna med tillräcklig säkerhet."
+            action={<Button onClick={() => navigate('/upload')}>Prova en ny omgång</Button>}
+          />
+        </div>
       ) : (
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {garments.map((garment, index) => (

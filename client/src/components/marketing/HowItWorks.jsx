@@ -5,26 +5,26 @@ import { LANDING_IMAGES } from './images'
 const STEPS = [
   {
     icon: UploadCloud,
-    title: 'Upload the pile',
-    copy: 'Drop in a batch of photos — single items, tangled piles, or a full rack. No sorting required before you start.',
+    title: 'Ladda upp högen',
+    copy: 'Släpp in 20–30 bilder åt gången – enstaka plagg, en hög eller en hel klädstång. Ingen sortering behövs innan du börjar.',
     image: LANDING_IMAGES.rack,
   },
   {
     icon: ScanSearch,
-    title: 'AI detects & reads',
-    copy: 'Every garment is found, cropped, and read: category, brand, size, color, and condition with a confidence score.',
+    title: 'AI:n hittar och läser av',
+    copy: 'Varje plagg hittas, friläggs och läses av: kategori, märke, storlek, färg och skick – med en säkerhetsnivå på varje uppgift. Plaggen dyker upp efter hand som de blir klara.',
     image: LANDING_IMAGES.flatlay,
   },
   {
     icon: CheckCircle2,
-    title: 'You review, honestly',
-    copy: 'Low-confidence calls and possible damage are flagged for a human look — never quietly assumed or hidden.',
+    title: 'Du granskar – ärligt',
+    copy: 'Osäkra bedömningar och möjligt slitage flaggas för en mänsklig titt – aldrig tyst antaget eller dolt. Blir AI-bilden inte ren visas ditt originalfoto i stället.',
     image: LANDING_IMAGES.soft,
   },
   {
     icon: ShoppingBag,
-    title: 'Publish with a price',
-    copy: 'Accept the AI-suggested price or set your own. Nothing goes live until you approve it.',
+    title: 'Publicera med pris',
+    copy: 'Färdig svensk titel, beskrivning och prisförslag. Godkänn eller ändra – inget går live förrän du trycker på Publicera.',
     image: LANDING_IMAGES.hanging,
   },
 ]
@@ -39,12 +39,12 @@ export default function HowItWorks() {
         transition={{ duration: 0.6 }}
         className="max-w-2xl"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-moss">How it works</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-moss">Så funkar det</p>
         <h2 className="mt-4 font-display text-4xl font-semibold leading-[1.05] text-ink sm:text-5xl">
-          From a chaotic pile to a live listing
+          Från en rörig hög till färdiga annonser
         </h2>
         <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
-          Four deliberate steps. Minutes, not hours — and a human always has the final word.
+          Fyra tydliga steg. Minuter, inte timmar – och en människa har alltid sista ordet.
         </p>
       </motion.div>
 

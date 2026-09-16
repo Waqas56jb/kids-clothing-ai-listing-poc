@@ -8,10 +8,9 @@ import PricingStatusBadge from './PricingStatus'
 import PricingEditor from './PricingEditor'
 import { PRICING_STATUS } from '../../lib/pricing'
 
-/** The seller/admin-facing "Pricing Recommendation" card -- never presents
- * the AI numbers as final; only `finalPrice` (set by a human action) is
- * ever treated as the price that will be used in the listing. */
-export default function PricingCard({ pricing, title = 'Pricing Recommendation', onApprove, onSave, className = '' }) {
+/** "Prisförslag" card -- the AI numbers are never presented as final; only
+ * `finalPrice` (set by a human action) is the price used in the listing. */
+export default function PricingCard({ pricing, title = 'Prisförslag', onApprove, onSave, className = '' }) {
   const [editing, setEditing] = useState(false)
   if (!pricing) return null
 
@@ -37,38 +36,40 @@ export default function PricingCard({ pricing, title = 'Pricing Recommendation',
         <>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Suggested Range</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI:s prisintervall</p>
               <PricingRange min={pricing.minPrice} max={pricing.maxPrice} currency={pricing.currency} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Recommended</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI-förslag</p>
               <p className="font-display text-lg font-bold text-brand-700">
-                {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">{pricing.currency}</span>
+                {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">kr</span>
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Confidence</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Säkerhet</p>
               <PricingConfidence value={pricing.confidence} />
             </div>
           </div>
 
+          {pricing.reason && <p className="mt-3 text-xs text-slate-400">{pricing.reason}</p>}
+
           {isFinal && (
             <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
-              Final approved price: <strong>{pricing.finalPrice} {pricing.currency}</strong>
-              {pricing.adjustedBy && <span className="text-emerald-600"> · set by {pricing.adjustedBy}</span>}
+              Slutpris: <strong>{pricing.finalPrice} kr</strong>
+              {pricing.adjustedBy && <span className="text-emerald-600"> · satt av {pricing.adjustedBy}</span>}
             </div>
           )}
 
-          {pricing.note && <p className="mt-3 text-sm text-slate-500">Note: {pricing.note}</p>}
+          {pricing.note && <p className="mt-3 text-sm text-slate-500">Anteckning: {pricing.note}</p>}
 
           <div className="mt-4 flex flex-wrap gap-2">
             {!isFinal && (
               <Button size="sm" onClick={onApprove}>
-                <Check className="h-3.5 w-3.5" /> Accept Recommendation
+                <Check className="h-3.5 w-3.5" /> Godkänn förslaget
               </Button>
             )}
             <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-              <Pencil className="h-3.5 w-3.5" /> Edit Price
+              <Pencil className="h-3.5 w-3.5" /> Ändra pris
             </Button>
           </div>
         </>

@@ -11,6 +11,7 @@ import {
   MOCK_CATEGORY_BASE_RANGES,
   PRICING_STATUS,
 } from '../../lib/pricing'
+import { categoryLabel } from '../../lib/sv'
 import Card from '../ui/Card'
 import StatCard from '../ui/StatCard'
 import Skeleton from '../ui/Skeleton'
@@ -20,9 +21,9 @@ import PricingTable from '../pricing/PricingTable'
 import BundlePricingCard from '../pricing/BundlePricingCard'
 
 const TABS = [
-  { value: 'garments', label: 'Garments' },
-  { value: 'packages', label: 'Packages' },
-  { value: 'rules', label: 'Pricing Rules' },
+  { value: 'garments', label: 'Plagg' },
+  { value: 'packages', label: 'Paket' },
+  { value: 'rules', label: 'Prisregler' },
 ]
 
 export default function PricingEnginePage() {
@@ -48,10 +49,11 @@ export default function PricingEnginePage() {
           jobId: job.job_id,
           detectionId: garment.detection_ids[0],
           projectName: job.job_id.slice(0, 10),
-          garmentLabel: garment.category?.replace(/_/g, ' '),
+          garmentLabel: categoryLabel(garment.category),
           category: garment.category,
           brand: garment.brand,
           size: garment.size,
+          // Key, not label: PricingTable maps 'needs review' and condition keys to Swedish.
           condition: garment.defects ? 'needs review' : garment.condition,
           pricing: pricings[i],
         })
@@ -101,18 +103,18 @@ export default function PricingEnginePage() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Pricing Engine</h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Prismotor</h1>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Prices are stored in the database. Approve, adjust, or reject — sellers and admins share the same records.
+        Priserna sparas centralt. Godkänn, justera eller avvisa – säljare och admin ser samma uppgifter.
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Total Recommendations" value={stats.total} icon={Banknote} tone="brand" />
-        <StatCard label="Pending Review" value={stats.pendingReview} icon={AlertTriangle} tone="amber" />
-        <StatCard label="Approved" value={stats.approved} icon={CheckCircle2} tone="emerald" />
-        <StatCard label="Manually Adjusted" value={stats.manuallyAdjusted} icon={Pencil} tone="brand" />
-        <StatCard label="Low Confidence" value={stats.lowConfidence} icon={Tag} tone="rose" />
+        <StatCard label="Prisförslag totalt" value={stats.total} icon={Banknote} tone="brand" />
+        <StatCard label="Väntar på granskning" value={stats.pendingReview} icon={AlertTriangle} tone="amber" />
+        <StatCard label="Godkända" value={stats.approved} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Manuellt justerade" value={stats.manuallyAdjusted} icon={Pencil} tone="brand" />
+        <StatCard label="Låg säkerhet" value={stats.lowConfidence} icon={Tag} tone="rose" />
       </div>
 
       <div className="mt-8">
@@ -122,14 +124,14 @@ export default function PricingEnginePage() {
       {tab === 'garments' && (
         <div className="mt-4">
           {rows.length === 0 ? (
-            <EmptyState icon={Banknote} title="No garment pricing yet" description="Completed projects will appear here." />
+            <EmptyState icon={Banknote} title="Inga prisförslag för plagg än" description="Färdiga projekt visas här." />
           ) : (
             <PricingTable
               rows={rows}
               onReview={(row) => navigate(`/pricing/garment/${row.jobId}/${row.detectionId}`)}
               onApprove={async (row) => {
                 await approvePricing(row.pricing.id, { actor: 'Admin' })
-                toast.success('Price approved.')
+                toast.success('Priset är godkänt.')
                 load()
               }}
             />
@@ -140,7 +142,7 @@ export default function PricingEnginePage() {
       {tab === 'packages' && (
         <div className="mt-4">
           {packages.length === 0 ? (
-            <EmptyState icon={Tag} title="No package suggestions yet" description="Groups of similar items will be priced as bundles here." />
+            <EmptyState icon={Tag} title="Inga paketförslag än" description="Grupper av liknande plagg prissätts som paket här." />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {packages.map((pkg) => (
@@ -151,7 +153,7 @@ export default function PricingEnginePage() {
                     onApprove={async (event) => {
                       event?.stopPropagation?.()
                       await approvePricing(pkg.pricing.id, { actor: 'Admin' })
-                      toast.success('Bundle price approved.')
+                      toast.success('Paketpriset är godkänt.')
                       load()
                     }}
                     onSave={() => navigate(`/pricing/group/${pkg.jobId}/${pkg.group.id}`)}
@@ -166,20 +168,20 @@ export default function PricingEnginePage() {
       {tab === 'rules' && (
         <div className="mt-4">
           <Card className="p-5">
-            <h2 className="font-display text-base font-bold text-slate-800">Pricing Rules</h2>
+            <h2 className="font-display text-base font-bold text-slate-800">Prisregler</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Illustrative base price ranges (SEK) by category, used only by this mock service so recommendations
-              stay consistent. This is <strong>not</strong> the production pricing engine -- real pricing
-              rules/data sources connect here in Milestone 4.
+              Illustrativa basprisintervall (kr) per kategori som används av den här tjänsten så att förslagen blir
+              konsekventa. Detta är <strong>inte</strong> den slutgiltiga prismotorn – riktiga prisregler och datakällor
+              kopplas in i milstolpe 4.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {Object.entries(MOCK_CATEGORY_BASE_RANGES)
                 .filter(([key]) => key !== 'default')
                 .map(([category, [min, max]]) => (
                   <div key={category} className="rounded-xl bg-surface/60 p-3">
-                    <p className="text-xs font-semibold capitalize text-slate-500">{category.replace(/_/g, ' ')}</p>
+                    <p className="text-xs font-semibold text-slate-500">{categoryLabel(category)}</p>
                     <p className="mt-1 font-display text-sm font-bold text-slate-800">
-                      {min}–{max} <span className="text-xs font-semibold text-slate-400">SEK</span>
+                      {min}–{max} <span className="text-xs font-semibold text-slate-400">kr</span>
                     </p>
                   </div>
                 ))}

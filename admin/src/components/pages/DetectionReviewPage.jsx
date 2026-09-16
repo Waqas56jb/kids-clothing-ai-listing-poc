@@ -3,7 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
-import { toneForMatch } from '../../lib/garment'
+import { detectionImagePath, toneForMatch } from '../../lib/garment'
+import {
+  CATEGORY_OPTIONS,
+  CONDITION_OPTIONS,
+  GENDER_OPTIONS,
+  categoryLabel,
+  conditionLabel,
+  genderLabel,
+  matchStatusLabel,
+} from '../../lib/sv'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -13,6 +22,44 @@ function confidenceTone(value) {
   if (value >= 0.8) return 'good'
   if (value >= 0.5) return 'ok'
   return 'bad'
+}
+
+const FIELD_LABEL = {
+  category: 'Kategori',
+  brand: 'Märke',
+  size: 'Storlek',
+  color: 'Färg',
+  condition: 'Skick',
+  gender: 'Passar',
+}
+
+// Fields whose backend values are stable English keys get a dropdown with
+// Swedish labels; free-text fields stay as plain inputs.
+const FIELD_OPTIONS = {
+  category: { options: CATEGORY_OPTIONS, label: categoryLabel },
+  condition: { options: CONDITION_OPTIONS, label: conditionLabel },
+  gender: { options: GENDER_OPTIONS, label: genderLabel },
+}
+
+const inputClass = 'w-full rounded-lg border border-slate-200 px-2 py-1 text-sm'
+
+function FieldInput({ field, value, onChange }) {
+  const config = FIELD_OPTIONS[field]
+  if (!config) {
+    return <input value={value ?? ''} onChange={(event) => onChange(event.target.value)} className={inputClass} />
+  }
+  const current = value ?? ''
+  const options = current && !config.options.includes(current) ? [current, ...config.options] : config.options
+  return (
+    <select value={current} onChange={(event) => onChange(event.target.value)} className={`${inputClass} bg-white`}>
+      <option value="">—</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {config.label(option)}
+        </option>
+      ))}
+    </select>
+  )
 }
 
 export default function DetectionReviewPage() {
@@ -38,7 +85,7 @@ export default function DetectionReviewPage() {
   }
 
   const garment = job.result?.garments.find((g) => g.detection_ids.includes(detectionId))
-  if (!garment) return <p className="text-sm text-slate-500">Detection not found.</p>
+  if (!garment) return <p className="text-sm text-slate-500">Detektionen hittades inte.</p>
   if (!form) {
     return (
       <div className="space-y-3">
@@ -53,15 +100,13 @@ export default function DetectionReviewPage() {
   return (
     <div>
       <Link to={`/garments/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Garment management
+        <ArrowLeft className="h-4 w-4" /> Plagghantering
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold capitalize text-slate-800 sm:text-3xl">
-          {garment.category.replace(/_/g, ' ')}
-        </h1>
-        <Badge tone={toneForMatch(garment.match_status)}>{garment.match_status.replace(/_/g, ' ')}</Badge>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">{categoryLabel(garment.category)}</h1>
+        <Badge tone={toneForMatch(garment.match_status)}>{matchStatusLabel(garment.match_status)}</Badge>
       </div>
-      <p className="mt-1 font-mono text-xs text-slate-400">garment id: {garment.id}</p>
+      <p className="mt-1 font-mono text-xs text-slate-400">plagg-id: {garment.id}</p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.3fr]">
         <div>
@@ -69,7 +114,7 @@ export default function DetectionReviewPage() {
             {garment.detection_ids.map((id) => (
               <div key={id} className="rounded-2xl bg-white p-2 shadow-soft">
                 <div className="aspect-square overflow-hidden rounded-xl bg-surface">
-                  <img src={fileUrl(jobId, `debug/masks/${id}_masked.png`)} alt="" className="h-full w-full object-contain p-1" />
+                  <img src={fileUrl(jobId, detectionImagePath(garment, id))} alt="" className="h-full w-full object-contain p-1" />
                 </div>
                 <p className="mt-1.5 truncate text-center font-mono text-[10px] text-slate-400">{id}</p>
               </div>
@@ -80,35 +125,35 @@ export default function DetectionReviewPage() {
             <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Flagged defect: <strong>{garment.defects}</strong>
+                Möjligt slitage: <strong>{garment.defects}</strong>
               </span>
             </div>
           )}
         </div>
 
         <div>
-          <h2 className="font-display text-base font-bold text-slate-800">Extracted attributes &amp; confidence</h2>
+          <h2 className="font-display text-base font-bold text-slate-800">Utlästa attribut &amp; säkerhet</h2>
           <div className="mt-3">
             <Table>
               <Thead>
-                <Th>Field</Th>
-                <Th>Value</Th>
-                <Th>Confidence</Th>
+                <Th>Fält</Th>
+                <Th>Värde</Th>
+                <Th>Säkerhet</Th>
               </Thead>
               <tbody>
                 {fields.map((field) => (
                   <Tr key={field}>
-                    <Td className="capitalize font-medium text-slate-500">{field}</Td>
-                    <Td className="capitalize">
-                      <input
-                        value={form[field] ?? ''}
-                        onChange={(event) => setForm((prev) => ({ ...prev, [field]: event.target.value }))}
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                    <Td className="font-medium text-slate-500">{FIELD_LABEL[field]}</Td>
+                    <Td>
+                      <FieldInput
+                        field={field}
+                        value={form[field]}
+                        onChange={(value) => setForm((prev) => ({ ...prev, [field]: value }))}
                       />
                     </Td>
                     <Td>
                       <Badge tone={confidenceTone(garment.confidence?.[field] ?? 0)}>
-                        {Math.round((garment.confidence?.[field] ?? 0) * 100)}%
+                        {Math.round((garment.confidence?.[field] ?? 0) * 100)} %
                       </Badge>
                     </Td>
                   </Tr>
@@ -132,28 +177,28 @@ export default function DetectionReviewPage() {
                       },
                     },
                   })
-                  toast.success('Saved to the database.')
+                  toast.success('Ändringarna har sparats.')
                 } catch (err) {
-                  toast.error(err.message || 'Could not save')
+                  toast.error(err.message || 'Kunde inte spara')
                 }
               }}
             >
-              Save changes
+              Spara ändringar
             </Button>
           </div>
 
-          <h2 className="mt-6 font-display text-base font-bold text-slate-800">Matching</h2>
+          <h2 className="mt-6 font-display text-base font-bold text-slate-800">Matchning</h2>
           <div className="mt-3 rounded-2xl bg-white p-4 shadow-soft text-sm">
             <div className="flex justify-between py-1">
-              <span className="text-slate-500">Match confidence</span>
-              <span className="font-semibold text-slate-800">{Math.round(garment.match_confidence * 100)}%</span>
+              <span className="text-slate-500">Matchningssäkerhet</span>
+              <span className="font-semibold text-slate-800">{Math.round(garment.match_confidence * 100)} %</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-slate-500">Source photos</span>
+              <span className="text-slate-500">Källbilder</span>
               <span className="font-semibold text-slate-800">{garment.images.length}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-slate-500">Detections merged</span>
+              <span className="text-slate-500">Sammanslagna detektioner</span>
               <span className="font-semibold text-slate-800">{garment.detection_ids.length}</span>
             </div>
           </div>

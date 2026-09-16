@@ -11,7 +11,7 @@ export function computeInitialGroups(garments) {
     if (!byKey.has(key)) {
       byKey.set(key, {
         id: key,
-        size: garment.size ?? 'Unspecified size',
+        size: garment.size ?? 'Okänd storlek',
         category: garment.category,
         garmentIds: [],
       })
@@ -51,4 +51,11 @@ export function mergeGroups(groups, sourceId, targetId) {
   return groups
     .map((g) => (g.id === targetId ? { ...g, garmentIds: [...g.garmentIds, ...source.garmentIds] } : g))
     .filter((g) => g.id !== sourceId)
+}
+
+// Display label for a group's size. Groups saved before the Swedish UI may
+// still carry the legacy English placeholder, so map it here.
+export function groupSizeLabel(size) {
+  if (!size || size === 'Unspecified size' || size === 'unspecified size') return 'Okänd storlek'
+  return size
 }

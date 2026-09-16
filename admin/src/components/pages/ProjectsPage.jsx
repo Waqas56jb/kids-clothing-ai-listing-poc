@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FolderKanban } from 'lucide-react'
 import { listJobs } from '../../api'
+import { jobStatusLabel, timeAgoSv } from '../../lib/sv'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
 import Badge from '../ui/Badge'
 import Tabs from '../ui/Tabs'
@@ -9,14 +10,6 @@ import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 
 const STATUS_TONE = { done: 'good', processing: 'info', queued: 'neutral', error: 'bad' }
-
-function timeAgo(unixSeconds) {
-  const seconds = Math.max(0, Date.now() / 1000 - unixSeconds)
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  return `${Math.floor(seconds / 86400)}d ago`
-}
 
 export default function ProjectsPage() {
   const [jobs, setJobs] = useState(null)
@@ -36,16 +29,16 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">Projects</h1>
-      <p className="mt-1 text-sm text-slate-500">Every seller upload batch, with live processing status.</p>
+      <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">Projekt</h1>
+      <p className="mt-1 text-sm text-slate-500">Alla säljares uppladdade omgångar med aktuell bearbetningsstatus.</p>
 
       <div className="mt-5 overflow-x-auto">
         <Tabs
           tabs={[
-            { value: 'all', label: 'All' },
-            { value: 'processing', label: 'Processing' },
-            { value: 'done', label: 'Done' },
-            { value: 'error', label: 'Failed' },
+            { value: 'all', label: 'Alla' },
+            { value: 'processing', label: 'Bearbetas' },
+            { value: 'done', label: 'Klara' },
+            { value: 'error', label: 'Misslyckade' },
           ]}
           active={filter}
           onChange={setFilter}
@@ -60,15 +53,15 @@ export default function ProjectsPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={FolderKanban} title="No projects found" description="Nothing matches this filter yet." />
+          <EmptyState icon={FolderKanban} title="Inga projekt hittades" description="Inget matchar det här filtret än." />
         ) : (
           <Table>
             <Thead>
-              <Th>Project</Th>
-              <Th>Photos</Th>
-              <Th>Garments</Th>
+              <Th>Projekt</Th>
+              <Th>Bilder</Th>
+              <Th>Plagg</Th>
               <Th>Status</Th>
-              <Th>Created</Th>
+              <Th>Skapad</Th>
             </Thead>
             <tbody>
               {filtered.map((job) => (
@@ -81,9 +74,9 @@ export default function ProjectsPage() {
                   <Td>{job.image_count}</Td>
                   <Td>{job.garment_count ?? '—'}</Td>
                   <Td>
-                    <Badge tone={STATUS_TONE[job.status] ?? 'neutral'}>{job.status}</Badge>
+                    <Badge tone={STATUS_TONE[job.status] ?? 'neutral'}>{jobStatusLabel(job.status)}</Badge>
                   </Td>
-                  <Td className="text-slate-400">{timeAgo(job.created_at)}</Td>
+                  <Td className="text-slate-400">{timeAgoSv(job.created_at)}</Td>
                 </Tr>
               ))}
             </tbody>

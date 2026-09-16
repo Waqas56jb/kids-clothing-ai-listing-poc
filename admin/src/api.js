@@ -5,7 +5,7 @@ export const API_BASE = (import.meta.env.VITE_API_URL || '').trim()
 
 async function getAccessToken() {
   const token = readToken()
-  if (!token) throw new Error('Please sign in again')
+  if (!token) throw new Error('Logga in igen för att fortsätta')
   return token
 }
 
@@ -22,7 +22,7 @@ async function parse(res, fallback) {
   } catch {
     /* keep fallback */
   }
-  if (res.status === 401) throw new Error('Please sign in again')
+  if (res.status === 401) throw new Error('Logga in igen för att fortsätta')
   throw new Error(detail)
 }
 
@@ -35,17 +35,17 @@ export async function createJob(files) {
     headers: await authHeaders(),
     body: formData,
   })
-  return parse(res, 'Upload failed')
+  return parse(res, 'Uppladdningen misslyckades')
 }
 
 export async function getJob(jobId) {
   const res = await fetch(`${API_BASE}/api/jobs/${jobId}`, { headers: await authHeaders() })
-  return parse(res, 'Failed to fetch job status')
+  return parse(res, 'Kunde inte hämta jobbstatus')
 }
 
 export async function listJobs() {
   const res = await fetch(`${API_BASE}/api/jobs`, { headers: await authHeaders() })
-  return parse(res, 'Failed to fetch jobs')
+  return parse(res, 'Kunde inte hämta jobb')
 }
 
 export function fileUrl(jobId, relativePath) {
@@ -62,17 +62,17 @@ export async function patchWorkspace(jobId, patch) {
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   })
-  return parse(res, 'Failed to save')
+  return parse(res, 'Kunde inte spara')
 }
 
 export async function getJobPricing(jobId) {
   const res = await fetch(`${API_BASE}/api/jobs/${jobId}/pricing`, { headers: await authHeaders() })
-  return parse(res, 'Failed to fetch pricing')
+  return parse(res, 'Kunde inte hämta prisförslag')
 }
 
 export async function listPricing() {
   const res = await fetch(`${API_BASE}/api/pricing`, { headers: await authHeaders() })
-  return parse(res, 'Failed to fetch pricing')
+  return parse(res, 'Kunde inte hämta prisförslag')
 }
 
 function pricingPath(pricingId, suffix = '') {
@@ -85,7 +85,7 @@ export async function approvePricingApi(pricingId, body = {}) {
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return parse(res, 'Failed to approve price')
+  return parse(res, 'Kunde inte godkänna priset')
 }
 
 export async function rejectPricingApi(pricingId, body = {}) {
@@ -94,7 +94,7 @@ export async function rejectPricingApi(pricingId, body = {}) {
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return parse(res, 'Failed to reject price')
+  return parse(res, 'Kunde inte avvisa priset')
 }
 
 export async function updatePricingApi(pricingId, body = {}) {
@@ -103,10 +103,10 @@ export async function updatePricingApi(pricingId, body = {}) {
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return parse(res, 'Failed to update price')
+  return parse(res, 'Kunde inte uppdatera priset')
 }
 
 export async function getPricingHistoryApi(pricingId) {
   const res = await fetch(pricingPath(pricingId, '/history'), { headers: await authHeaders() })
-  return parse(res, 'Failed to fetch pricing history')
+  return parse(res, 'Kunde inte hämta prishistorik')
 }

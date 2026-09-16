@@ -1,24 +1,31 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Baby,
   ChevronLeft,
   ChevronRight,
+  HandCoins,
   LayoutDashboard,
   LogOut,
   Menu,
   PanelLeftClose,
+  Store,
+  Tag,
   UploadCloud,
   X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
+import { BRAND } from '../lib/sv'
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : 'https://admin.miniplagg.com')
 
 const NAV_LINKS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/upload', label: 'New Upload', icon: UploadCloud },
+  { to: '/dashboard', label: 'Översikt', icon: LayoutDashboard, end: true },
+  { to: '/upload', label: 'Ny uppladdning', icon: UploadCloud },
+  { to: '/annonser', label: 'Mina annonser', icon: Tag },
+  { to: '/annonser?flik=bud', label: 'Bud & köp', icon: HandCoins },
+  { to: '/marknad', label: 'Marknaden', icon: Store },
 ]
 
 function useCollapsed(key) {
@@ -60,28 +67,28 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onClick }) {
 
 function SidebarBody({ collapsed, onNavigate, onToggle }) {
   const { profile, user, signOut } = useAuth()
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Seller'
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Säljare'
   const initial = displayName.slice(0, 1).toUpperCase()
 
   return (
     <>
       <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between gap-2'} px-1`}>
-        <div className="flex min-w-0 items-center gap-3">
+        <Link to="/" className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white shadow-soft">
             <Baby className="h-5 w-5" />
           </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate font-display text-lg font-semibold text-white">Kids AI</p>
-              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-brand-200">Seller studio</p>
+              <p className="truncate font-display text-lg font-semibold text-white">{BRAND}</p>
+              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-brand-200">Säljarpanel</p>
             </div>
           )}
-        </div>
+        </Link>
         <button
           type="button"
           onClick={onToggle}
           className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl text-brand-100 hover:bg-white/10 hover:text-white lg:flex"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Visa sidomeny' : 'Dölj sidomeny'}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -107,20 +114,22 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
             </div>
           </div>
         )}
-        <a
-          href={ADMIN_URL}
-          className={`flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-brand-200 hover:bg-white/10 hover:text-white ${collapsed ? 'justify-center px-0' : ''}`}
-        >
-          <PanelLeftClose className="h-4 w-4" />
-          {!collapsed && 'Admin console'}
-        </a>
+        {profile?.role === 'admin' && (
+          <a
+            href={ADMIN_URL}
+            className={`flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-brand-200 hover:bg-white/10 hover:text-white ${collapsed ? 'justify-center px-0' : ''}`}
+          >
+            <PanelLeftClose className="h-4 w-4" />
+            {!collapsed && 'Adminpanel'}
+          </a>
+        )}
         <button
           type="button"
           onClick={signOut}
           className={`flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-brand-200 hover:bg-white/10 hover:text-white ${collapsed ? 'justify-center px-0' : ''}`}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && 'Log out'}
+          {!collapsed && 'Logga ut'}
         </button>
       </div>
     </>
@@ -161,7 +170,7 @@ export default function SellerLayout() {
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl text-brand-100 hover:bg-white/10"
-                aria-label="Close menu"
+                aria-label="Stäng meny"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -177,11 +186,11 @@ export default function SellerLayout() {
             type="button"
             onClick={() => setMobileOpen(true)}
             className="flex h-11 w-11 items-center justify-center rounded-2xl text-ink hover:bg-sand"
-            aria-label="Open menu"
+            aria-label="Öppna meny"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-display text-lg font-semibold text-ink">Seller studio</span>
+          <span className="font-display text-lg font-semibold text-ink">{BRAND}</span>
         </header>
 
         <motion.main

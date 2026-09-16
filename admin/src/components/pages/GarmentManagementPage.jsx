@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Shirt } from 'lucide-react'
 import { fileUrl, getJob } from '../../api'
-import { toneForCondition, toneForMatch } from '../../lib/garment'
+import { conditionLabel, garmentImagePath, toneForCondition, toneForMatch } from '../../lib/garment'
+import { categoryLabel } from '../../lib/sv'
 import { Table, Thead, Th, Tr, Td } from '../ui/Table'
 import Badge from '../ui/Badge'
 import { Select } from '../ui/Input'
@@ -39,15 +40,15 @@ export default function GarmentManagementPage() {
   return (
     <div>
       <Link to={`/projects/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Project {jobId}
+        <ArrowLeft className="h-4 w-4" /> Projekt {jobId}
       </Link>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Garment Management</h1>
-        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
-          <option value="all">All categories</option>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Plagghantering</h1>
+        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48" aria-label="Filtrera på kategori">
+          <option value="all">Alla kategorier</option>
           {categories.map((c) => (
             <option key={c} value={c}>
-              {c.replace(/_/g, ' ')}
+              {categoryLabel(c)}
             </option>
           ))}
         </Select>
@@ -55,19 +56,19 @@ export default function GarmentManagementPage() {
 
       {filtered.length === 0 ? (
         <div className="mt-6">
-          <EmptyState icon={Shirt} title="No garments" description="No garments match this filter." />
+          <EmptyState icon={Shirt} title="Inga plagg" description="Inga plagg matchar det här filtret." />
         </div>
       ) : (
         <div className="mt-5">
           <Table>
             <Thead>
               <Th></Th>
-              <Th>Category</Th>
-              <Th>Brand</Th>
-              <Th>Size</Th>
-              <Th>Color</Th>
-              <Th>Condition</Th>
-              <Th>Match</Th>
+              <Th>Kategori</Th>
+              <Th>Märke</Th>
+              <Th>Storlek</Th>
+              <Th>Färg</Th>
+              <Th>Skick</Th>
+              <Th>Matchning</Th>
             </Thead>
             <tbody>
               {filtered.map((garment) => (
@@ -76,7 +77,7 @@ export default function GarmentManagementPage() {
                     <Link to={`/garments/${jobId}/${garment.detection_ids[0]}`}>
                       <div className="h-11 w-11 overflow-hidden rounded-lg bg-surface shadow-soft">
                         <img
-                          src={fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)}
+                          src={fileUrl(jobId, garmentImagePath(garment))}
                           alt=""
                           className="h-full w-full object-contain p-0.5"
                         />
@@ -86,21 +87,19 @@ export default function GarmentManagementPage() {
                   <Td>
                     <Link
                       to={`/garments/${jobId}/${garment.detection_ids[0]}`}
-                      className="font-semibold capitalize text-brand-700 hover:underline"
+                      className="font-semibold text-brand-700 hover:underline"
                     >
-                      {garment.category.replace(/_/g, ' ')}
+                      {categoryLabel(garment.category)}
                     </Link>
                   </Td>
                   <Td>{garment.brand ?? '—'}</Td>
                   <Td>{garment.size ?? '—'}</Td>
                   <Td className="capitalize">{garment.color ?? '—'}</Td>
                   <Td>
-                    <Badge tone={toneForCondition(garment.condition, Boolean(garment.defects))}>
-                      {garment.defects ? 'review' : (garment.condition ?? 'unknown')}
-                    </Badge>
+                    <Badge tone={toneForCondition(garment.condition, Boolean(garment.defects))}>{conditionLabel(garment)}</Badge>
                   </Td>
                   <Td>
-                    <Badge tone={toneForMatch(garment.match_status)}>{Math.round(garment.match_confidence * 100)}%</Badge>
+                    <Badge tone={toneForMatch(garment.match_status)}>{Math.round(garment.match_confidence * 100)} %</Badge>
                   </Td>
                 </Tr>
               ))}

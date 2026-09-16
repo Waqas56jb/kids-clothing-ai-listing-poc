@@ -11,7 +11,7 @@ async function authRequest(path, body) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Auth failed')
+    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Inloggningen misslyckades')
   }
   return data
 }

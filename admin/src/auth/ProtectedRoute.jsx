@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import { useAuth } from './AuthContext'
+import { BRAND } from '../lib/sv'
 
 export function AuthSplash() {
   return (
@@ -9,8 +10,8 @@ export function AuthSplash() {
       <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 text-white shadow-elevated">
         <ShieldCheck className="h-7 w-7 animate-pulse-soft" />
       </span>
-      <p className="font-display text-2xl font-semibold text-white">Admin console</p>
-      <p className="text-sm text-brand-200">Checking your access…</p>
+      <p className="font-display text-2xl font-semibold text-white">{BRAND}</p>
+      <p className="text-sm text-brand-200">Loggar in…</p>
     </div>
   )
 }

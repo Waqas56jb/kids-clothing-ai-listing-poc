@@ -1,44 +1,57 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
-from pathlib import Path
+
+from PIL import Image
 
 from ai_engine.config import SETTINGS
-from ai_engine.schemas import AttributeConfidence, Attributes
+from ai_engine.schemas import CATEGORY_KEYS, CONDITION_KEYS, AttributeConfidence, Attributes
+from ai_engine.utils import image_io
 
 _ATTRIBUTE_SCHEMA = {
     "type": "object",
     "properties": {
         "category": {
             "type": "string",
+            "enum": CATEGORY_KEYS,
             "description": (
-                "Specific garment category, e.g. bodysuit, trousers, t-shirt, dress, "
-                "jacket, sweater. If image A does not actually show a piece of "
-                "clothing (e.g. it's just a hang tag, label, or empty background "
-                "that the detector mistakenly boxed), set this to 'not_a_garment' "
-                "and give category confidence 0 -- never invent a garment type for "
-                "something that isn't one."
+                "The garment type, chosen from the allowed keys. If image A does not "
+                "actually show a piece of clothing (e.g. it's just a hang tag, label, or "
+                "empty background that the detector mistakenly boxed), use "
+                "'not_a_garment' and give category confidence 0 -- never invent a "
+                "garment type for something that isn't one."
             ),
         },
-        "brand": {"type": ["string", "null"]},
-        "size": {"type": ["string", "null"]},
-        "color": {"type": ["string", "null"]},
-        "condition": {
+        "brand": {"type": ["string", "null"], "description": "Brand name exactly as printed on the label, or null."},
+        "size": {
+            "type": ["string", "null"],
+            "description": "Size exactly as printed (e.g. '86', '92/98', '2-3 år', '6M'), or null.",
+        },
+        "color": {
             "type": ["string", "null"],
             "description": (
-                "One of: new, like new, good, fair, worn, damaged. Must be "
-                "'damaged' whenever `defects` is non-null, regardless of how "
-                "clean the rest of the garment looks."
+                "Main color(s) and pattern IN SWEDISH, short and natural, e.g. 'vit', "
+                "'ljusblå med vita ränder', 'rosa blommig', 'mörkgrön'."
+            ),
+        },
+        "condition": {
+            "type": ["string", "null"],
+            "enum": CONDITION_KEYS + [None],
+            "description": (
+                "One of: new, like new, good, fair, worn, damaged. Must be 'damaged' "
+                "whenever `defects` is non-null, regardless of how clean the rest of "
+                "the garment looks."
             ),
         },
         "defects": {
             "type": ["string", "null"],
             "description": (
-                "Short, specific description of any visible flaw actually seen in "
-                "the image: holes, tears/rips, fraying, stains, discoloration, "
-                "missing buttons, broken zipper, pilling, etc. Null only if you "
-                "looked and genuinely found nothing."
+                "Short, specific description IN SWEDISH of any visible flaw actually "
+                "seen in the image: hål, revor, fransning, fläckar, missfärgning, "
+                "saknade knappar, trasig dragkedja, noppor. Null only if you looked "
+                "and genuinely found nothing."
             ),
         },
         "gender": {
@@ -64,14 +77,18 @@ _ATTRIBUTE_SCHEMA = {
 }
 
 _SYSTEM_PROMPT = (
-    "You are a product attribute extractor for a secondhand children's clothing "
-    "marketplace. You are shown two images of the same detected item, cropped from "
-    "the same seller photo:\n"
-    "  - Image A: background whited out by our segmentation step, garment isolated.\n"
-    "  - Image B: the same crop region from the original, unedited photo.\n"
-    "Base category/brand/size/color/gender on whichever image shows it more clearly "
-    "(usually A). Report every field with an honest confidence score from 0 to 1 "
-    "based only on visual/text evidence actually present.\n\n"
+    "You are a product attribute extractor for Miniplagg, a Swedish secondhand "
+    "children's clothing marketplace. You are shown two images of the same detected "
+    "item, cropped from the same seller photo:\n"
+    "  - Image A: the crop region from the original, unedited photo (primary evidence).\n"
+    "  - Image B: the same crop with the background whited out by our segmentation "
+    "step, when available -- it may be imperfect at the edges.\n"
+    "Base category/brand/size/color/gender on whichever image shows it more clearly. "
+    "Report every field with an honest confidence score from 0 to 1 based only on "
+    "visual/text evidence actually present.\n\n"
+    "Language: write `color` and `defects` in natural Swedish. Keep `brand` and `size` "
+    "exactly as printed on the label. `category`, `condition` and `gender` are fixed "
+    "keys (choose from the allowed values).\n\n"
     "Rules:\n"
     "- Never invent a brand, size, or color you cannot actually see or read. "
     "If unsure, set the field to null and give it low confidence.\n"
@@ -105,12 +122,12 @@ _SYSTEM_PROMPT = (
     "design detail: only call it a defect if you're confident a repair would "
     "actually be needed. Leave `defects` null and `condition` 'good' rather than "
     "guess -- an uncertain damage claim is worse than no claim at all.\n"
-    "- Image A's cutout edge is frequently ragged or notched -- around ruffles, "
+    "- Image B's cutout edge is frequently ragged or notched -- around ruffles, "
     "sleeves, collars, or wherever a tag/hanger/clip sat in the original photo -- "
     "purely because automatic background removal is imperfect there, not because "
-    "the fabric is torn. Treat a gap or notch as real damage ONLY if image B (the "
+    "the fabric is torn. Treat a gap or notch as real damage ONLY if image A (the "
     "original photo) also shows an actual hole, tear, or irregularity in the "
-    "fabric at that same spot. If image B shows continuous, intact fabric there, "
+    "fabric at that same spot. If image A shows continuous, intact fabric there, "
     "it was a cutout artifact -- do not report it in `defects`.\n"
     "- Ruffles, frills, pleats, and gathered fabric naturally cast small shadows "
     "and gaps between folds in a normal photo -- this is fabric texture, not "
@@ -118,13 +135,13 @@ _SYSTEM_PROMPT = (
     "actually breached: a gap that exposes skin, another layer, the background "
     "behind the garment, or loose/frayed thread ends. A dark or lighter patch "
     "between two folds of the same intact fabric is not damage.\n"
-    "- If image A doesn't actually show a piece of clothing (e.g. it's just a "
+    "- If the crop doesn't actually show a piece of clothing (e.g. it's just a "
     "hang tag, label, or stray background), set `category` to 'not_a_garment' "
     "with confidence 0 for every field rather than guessing a garment type."
 )
 
 
-_NULL_LOOKALIKES = {"", "null", "none", "n/a", "na", "unknown"}
+_NULL_LOOKALIKES = {"", "null", "none", "n/a", "na", "unknown", "okänd", "okänt", "ingen", "inga"}
 
 
 def _clean_nullable(value: str | None) -> str | None:
@@ -135,19 +152,22 @@ def _clean_nullable(value: str | None) -> str | None:
     return None if value.strip().lower() in _NULL_LOOKALIKES else value
 
 
-def _encode_image(image_path: str) -> str:
-    data = Path(image_path).read_bytes()
-    return base64.b64encode(data).decode("utf-8")
+def _encode_image(image: Image.Image) -> str:
+    """JPEG-encode a downscaled copy in memory: smaller payloads mean faster
+    round-trips with no loss of label legibility at this size."""
+    small = image_io.downscaled_copy(image.convert("RGB"), SETTINGS.vision_image_max_px)
+    buffer = io.BytesIO()
+    small.save(buffer, format="JPEG", quality=88)
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def _image_content(image_path: str) -> dict:
-    b64_image = _encode_image(image_path)
-    return {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}"}}
+def _image_content(image: Image.Image) -> dict:
+    return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{_encode_image(image)}", "detail": "high"}}
 
 
 def extract_attributes(
-    masked_crop_path: str,
-    bbox_crop_path: str,
+    original_crop: Image.Image,
+    cutout_crop: Image.Image | None,
     ocr_texts: list[str],
     detection_id: str,
 ) -> Attributes:
@@ -159,21 +179,21 @@ def extract_attributes(
     client = OpenAI(api_key=SETTINGS.openai_api_key)
     ocr_hint = "; ".join(ocr_texts) if ocr_texts else "(no text detected on label)"
 
+    content: list[dict] = [
+        {"type": "text", "text": f"OCR text detected on this garment's label: {ocr_hint}"},
+        {"type": "text", "text": "Image A (original photo, crop region):"},
+        _image_content(original_crop),
+    ]
+    if cutout_crop is not None:
+        content.append({"type": "text", "text": "Image B (background removed, may be imperfect at edges):"})
+        content.append(_image_content(cutout_crop))
+
     response = client.chat.completions.create(
         model=SETTINGS.openai_vision_model,
         temperature=0,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": f"OCR text detected on this garment's label: {ocr_hint}"},
-                    {"type": "text", "text": "Image A (background removed):"},
-                    _image_content(masked_crop_path),
-                    {"type": "text", "text": "Image B (original photo, same region):"},
-                    _image_content(bbox_crop_path),
-                ],
-            },
+            {"role": "user", "content": content},
         ],
         response_format={
             "type": "json_schema",
@@ -191,6 +211,8 @@ def extract_attributes(
     category = (payload.get("category") or "unknown").strip().lower()
     if category in ("", "null", "none", "n/a", "not_a_garment"):
         category = "not_a_garment"
+    elif category not in CATEGORY_KEYS:
+        category = "other"
 
     condition = _clean_nullable(payload.get("condition"))
     defects = _clean_nullable(payload.get("defects"))

@@ -13,31 +13,11 @@ export default function PricingEditor({ pricing, onSave, onCancel }) {
   return (
     <div className="mt-4 space-y-3">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Input
-          label="Minimum Price"
-          type="number"
-          value={minPrice}
-          onChange={(event) => setMinPrice(Number(event.target.value))}
-        />
-        <Input
-          label="Maximum Price"
-          type="number"
-          value={maxPrice}
-          onChange={(event) => setMaxPrice(Number(event.target.value))}
-        />
-        <Input
-          label="Final Price"
-          type="number"
-          value={finalPrice}
-          onChange={(event) => setFinalPrice(Number(event.target.value))}
-        />
+        <Input label="Lägsta pris (kr)" type="number" value={minPrice} onChange={(event) => setMinPrice(Number(event.target.value))} />
+        <Input label="Högsta pris (kr)" type="number" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} />
+        <Input label="Slutpris (kr)" type="number" value={finalPrice} onChange={(event) => setFinalPrice(Number(event.target.value))} />
       </div>
-      <Input
-        label="Pricing Note"
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        placeholder="e.g. Good condition, known brand"
-      />
+      <Input label="Anteckning" value={note} onChange={(event) => setNote(event.target.value)} placeholder="t.ex. Bra skick, känt märke" />
       <div className="flex gap-2">
         <Button
           size="sm"
@@ -48,10 +28,10 @@ export default function PricingEditor({ pricing, onSave, onCancel }) {
             setSaving(false)
           }}
         >
-          <Save className="h-3.5 w-3.5" /> Save Price
+          <Save className="h-3.5 w-3.5" /> Spara pris
         </Button>
         <Button size="sm" variant="secondary" onClick={onCancel}>
-          <X className="h-3.5 w-3.5" /> Cancel
+          <X className="h-3.5 w-3.5" /> Avbryt
         </Button>
       </div>
     </div>

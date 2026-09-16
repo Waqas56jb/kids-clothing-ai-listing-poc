@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Image as ImageIcon, Sparkles } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
-import { toneForCondition, toneForMatch } from '../../lib/garment'
+import { detectionImagePath, detectionVariant, toneForCondition, toneForMatch } from '../../lib/garment'
+import {
+  categoryLabel,
+  CATEGORY_OPTIONS,
+  CONDITION_OPTIONS,
+  conditionLabel as conditionKeyLabel,
+  GENDER_OPTIONS,
+  genderLabel,
+  matchStatusLabel,
+  plural,
+} from '../../lib/sv'
 import { approvePricing, getGarmentPricing, updatePricing } from '../../lib/pricing'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
@@ -12,23 +22,41 @@ import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 import PricingCard from '../pricing/PricingCard'
 
+const FIELD_LABELS = {
+  category: 'Kategori',
+  brand: 'Märke',
+  size: 'Storlek',
+  color: 'Färg',
+  condition: 'Skick',
+  gender: 'Passar',
+  defects: 'Anmärkning',
+}
+
+const REJECT_REASON_SV = {
+  segmentation_failed: 'AI:n kunde inte frilägga plagget rent',
+  overlaps_other_garment: 'plagget överlappar ett annat plagg',
+  mask_too_small: 'frilägningen missade för mycket av plagget',
+  mask_is_whole_box: 'frilägningen skilde inte plagget från bakgrunden',
+  mask_has_holes: 'frilägningen fick hål i plagget',
+  mask_cut_off_garment: 'frilägningen skar av delar av plagget',
+  empty_mask: 'AI:n kunde inte frilägga plagget',
+}
+
 function ConfidenceBar({ value = 0 }) {
   const pct = Math.round(value * 100)
   const tone = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-        <motion.div
-          className={`h-full rounded-full ${tone}`}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.5 }}
-        />
+        <motion.div className={`h-full rounded-full ${tone}`} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
       </div>
       <span className="text-xs font-medium text-slate-400">{pct}%</span>
     </div>
   )
 }
+
+const inputClass =
+  'rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-soft outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100'
 
 export default function GarmentDetailPage() {
   const { jobId, detectionId } = useParams()
@@ -39,6 +67,8 @@ export default function GarmentDetailPage() {
   const [pricing, setPricing] = useState(null)
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
+  const [showOriginal, setShowOriginal] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -61,7 +91,7 @@ export default function GarmentDetailPage() {
       .catch((err) => {
         if (cancelled) return
         console.error(err)
-        setError(err.message || 'Could not load this garment')
+        setError(err.message || 'Kunde inte hämta plagget')
       })
     return () => {
       cancelled = true
@@ -73,9 +103,9 @@ export default function GarmentDetailPage() {
       <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
         <EmptyState
           icon={AlertTriangle}
-          title="Couldn't load this garment"
+          title="Kunde inte visa plagget"
           description={error}
-          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Try again</Button>}
+          action={<Button onClick={() => setRetryKey((k) => k + 1)}>Försök igen</Button>}
         />
       </div>
     )
@@ -93,68 +123,93 @@ export default function GarmentDetailPage() {
     )
   }
 
+  if (!garment) {
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+        <EmptyState icon={AlertTriangle} title="Plagget hittades inte" action={<Button onClick={() => navigate(`/results/${jobId}`)}>Till resultaten</Button>} />
+      </div>
+    )
+  }
+
   async function handleSave() {
+    setSaving(true)
     try {
       await patchWorkspace(jobId, {
         garment_edits: {
           [garment.id]: {
             category: form.category,
-            brand: form.brand,
-            size: form.size,
-            color: form.color,
-            condition: form.condition,
-            gender: form.gender,
-            defects: form.defects,
+            brand: form.brand || null,
+            size: form.size || null,
+            color: form.color || null,
+            condition: form.condition || null,
+            gender: form.gender || null,
+            defects: form.defects || null,
           },
         },
       })
-      toast.success('Saved to the database. Admin can see these edits too.')
+      toast.success('Ändringarna är sparade.')
     } catch (err) {
-      toast.error(err.message || 'Could not save')
+      toast.error(err.message || 'Kunde inte spara')
+    } finally {
+      setSaving(false)
     }
   }
 
   async function handleApprovePricing() {
-    const updated = await approvePricing(pricing.id, { actor: 'Seller' })
+    const updated = await approvePricing(pricing.id)
     setPricing(updated)
-    toast.success('AI price accepted as the final price.')
+    toast.success('AI:s prisförslag är nu slutpris.')
   }
 
   async function handleSavePricing(payload) {
-    const updated = await updatePricing(pricing.id, { ...payload, actor: 'Seller' })
+    const updated = await updatePricing(pricing.id, payload)
     setPricing(updated)
-    toast.success('Custom price saved.')
+    toast.success('Priset är sparat.')
   }
 
-  const field = (key) => (
+  const setField = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))
+
+  const textField = (key, placeholder = 'Okänt') => (
     <label className="flex flex-col gap-1.5">
       <span className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{key}</span>
-        <ConfidenceBar value={garment.confidence?.[key]} />
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
+        {garment.confidence?.[key] != null && <ConfidenceBar value={garment.confidence[key]} />}
       </span>
-      <input
-        value={form[key] ?? ''}
-        onChange={(event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))}
-        className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-soft outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-        placeholder="Unknown"
-      />
+      <input value={form[key] ?? ''} onChange={setField(key)} className={inputClass} placeholder={placeholder} />
     </label>
   )
+
+  const selectField = (key, options, labelFor, allowEmpty = true) => (
+    <label className="flex flex-col gap-1.5">
+      <span className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
+        {garment.confidence?.[key] != null && <ConfidenceBar value={garment.confidence[key]} />}
+      </span>
+      <select value={form[key] ?? ''} onChange={setField(key)} className={inputClass}>
+        {allowEmpty && <option value="">Okänt</option>}
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {labelFor(option)}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+
+  const anyOriginal = (garment.image_variants || []).some((v) => v.original)
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
       <Link to={`/results/${jobId}`} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to results
+        <ArrowLeft className="h-4 w-4" /> Tillbaka till resultaten
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold capitalize text-slate-800 sm:text-3xl">
-          {garment.category.replace(/_/g, ' ')}
-        </h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">{categoryLabel(garment.category)}</h1>
         <div className="flex gap-2">
-          <Badge tone={toneForMatch(garment.match_status)}>{garment.match_status.replace(/_/g, ' ')}</Badge>
+          <Badge tone={toneForMatch(garment.match_status)}>{matchStatusLabel(garment.match_status)}</Badge>
           <Badge tone={toneForCondition(garment.condition, Boolean(garment.defects))}>
-            {garment.defects ? 'Needs review' : (garment.condition ?? 'unknown')}
+            {garment.defects ? 'Behöver granskas' : conditionKeyLabel(garment.condition)}
           </Badge>
         </div>
       </div>
@@ -163,41 +218,85 @@ export default function GarmentDetailPage() {
         <div className="mt-4 flex gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
           <span>
-            AI flagged possible damage — please verify against the physical item: <strong>{garment.defects}</strong>
+            AI:n noterade möjligt slitage – kontrollera mot det fysiska plagget: <strong>{garment.defects}</strong>
           </span>
         </div>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {showOriginal ? 'Originalfoton' : 'AI-bilder'}
+            </p>
+            {anyOriginal && (
+              <button
+                type="button"
+                onClick={() => setShowOriginal((v) => !v)}
+                className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
+              >
+                {showOriginal ? <Sparkles className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                {showOriginal ? 'Visa AI-bilder' : 'Visa originalfoton'}
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {garment.detection_ids.map((id) => (
-              <div key={id} className="aspect-square overflow-hidden rounded-2xl bg-white shadow-soft">
-                <img src={fileUrl(jobId, `debug/masks/${id}_masked.png`)} alt="" className="h-full w-full object-contain p-2" />
-              </div>
-            ))}
+            {garment.detection_ids.map((id) => {
+              const variant = detectionVariant(garment, id)
+              const reason = variant?.cutout_rejected_reason
+              return (
+                <div key={id} className="overflow-hidden rounded-2xl bg-white shadow-soft">
+                  <div className="aspect-square">
+                    <img
+                      src={fileUrl(jobId, detectionImagePath(garment, id, { original: showOriginal }))}
+                      alt=""
+                      className="h-full w-full object-contain p-2"
+                    />
+                  </div>
+                  {!showOriginal && variant && (
+                    <p className="border-t border-slate-100 px-2 py-1.5 text-[11px] text-slate-400">
+                      {variant.display_kind === 'cutout'
+                        ? 'Frilagd av AI'
+                        : `Ditt originalfoto${reason ? ` – ${REJECT_REASON_SV[reason] ?? 'AI-bilden höll inte måttet'}` : ''}`}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            {garment.images.length} source photo{garment.images.length > 1 ? 's' : ''} matched to this garment
+            {garment.images.length} {plural(garment.images.length, 'bild', 'bilder')} matchade till det här plagget.
+            Originalfotot används alltid när AI-frilägningen inte blir ren.
           </p>
         </div>
 
         <div className="space-y-4">
-          {field('category')}
+          {selectField('category', CATEGORY_OPTIONS, categoryLabel, false)}
           <div className="grid grid-cols-2 gap-4">
-            {field('brand')}
-            {field('size')}
+            {textField('brand')}
+            {textField('size', 't.ex. 86')}
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {field('color')}
-            {field('condition')}
+            {textField('color')}
+            {selectField('condition', CONDITION_OPTIONS, conditionKeyLabel)}
           </div>
-          {field('gender')}
+          {selectField('gender', GENDER_OPTIONS, genderLabel)}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS.defects}</span>
+            <input
+              value={form.defects ?? ''}
+              onChange={setField('defects')}
+              className={inputClass}
+              placeholder="Inget slitage noterat"
+            />
+          </label>
 
           <div className="flex gap-2 pt-2">
-            <Button onClick={handleSave}>Save changes</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Sparar…' : 'Spara ändringar'}
+            </Button>
             <Button variant="secondary" onClick={() => navigate(`/results/${jobId}`)}>
-              Cancel
+              Avbryt
             </Button>
           </div>
         </div>

@@ -9,11 +9,8 @@ import PricingEditor from './PricingEditor'
 import PricingHistory from './PricingHistory'
 import { PRICING_STATUS } from '../../lib/pricing'
 
-/**
- * Full review dialog for a single pricing recommendation -- used by admin
- * (and available to the seller flow) to approve, manually reprice, or
- * reject an AI price without leaving the current page.
- */
+/** Full review dialog for one price recommendation: approve, set a manual
+ * price, or reject -- without leaving the current page. */
 export default function PricingReviewModal({ open, onClose, pricing, title, onApprove, onSave, onReject, showHistory = true }) {
   const [editing, setEditing] = useState(false)
   if (!pricing) return null
@@ -21,7 +18,7 @@ export default function PricingReviewModal({ open, onClose, pricing, title, onAp
   const isFinal = pricing.status === PRICING_STATUS.APPROVED || pricing.status === PRICING_STATUS.MANUALLY_ADJUSTED
 
   return (
-    <Modal open={open} onClose={onClose} title={title ?? 'Review Pricing Recommendation'}>
+    <Modal open={open} onClose={onClose} title={title ?? 'Granska prisförslag'}>
       <div className="flex items-center justify-between">
         <PricingStatusBadge status={pricing.status} />
       </div>
@@ -39,17 +36,17 @@ export default function PricingReviewModal({ open, onClose, pricing, title, onAp
         <>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Suggested Range</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI:s prisintervall</p>
               <PricingRange min={pricing.minPrice} max={pricing.maxPrice} currency={pricing.currency} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Recommended</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI-förslag</p>
               <p className="font-display text-lg font-bold text-brand-700">
-                {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">{pricing.currency}</span>
+                {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">kr</span>
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Confidence</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Säkerhet</p>
               <PricingConfidence value={pricing.confidence} />
             </div>
           </div>
@@ -58,23 +55,23 @@ export default function PricingReviewModal({ open, onClose, pricing, title, onAp
 
           {isFinal && (
             <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
-              Final price: <strong>{pricing.finalPrice} {pricing.currency}</strong>
-              {pricing.adjustedBy && <span className="text-emerald-600"> · set by {pricing.adjustedBy}</span>}
+              Slutpris: <strong>{pricing.finalPrice} kr</strong>
+              {pricing.adjustedBy && <span className="text-emerald-600"> · satt av {pricing.adjustedBy}</span>}
             </div>
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
             {!isFinal && (
               <Button size="sm" onClick={onApprove}>
-                <Check className="h-3.5 w-3.5" /> Approve AI Price
+                <Check className="h-3.5 w-3.5" /> Godkänn AI-priset
               </Button>
             )}
             <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-              Set Manual Price
+              Sätt eget pris
             </Button>
-            {pricing.status !== PRICING_STATUS.REJECTED && (
+            {pricing.status !== PRICING_STATUS.REJECTED && onReject && (
               <Button size="sm" variant="danger" onClick={onReject}>
-                <Ban className="h-3.5 w-3.5" /> Reject
+                <Ban className="h-3.5 w-3.5" /> Avvisa
               </Button>
             )}
           </div>

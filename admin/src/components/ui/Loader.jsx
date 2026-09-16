@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react'
 
-export default function Loader({ label = 'Loading', className = '' }) {
+export default function Loader({ label = 'Laddar…', className = '' }) {
   return (
     <div className={`flex flex-col items-center justify-center gap-3 py-16 ${className}`}>
       <span className="relative flex h-12 w-12 items-center justify-center">

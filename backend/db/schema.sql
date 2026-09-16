@@ -60,6 +60,58 @@ create table if not exists public.job_files (
   created_at timestamptz not null default now()
 );
 
+-- Marketplace: a published listing is a snapshot of one garment at the moment
+-- the seller pressed "Publicera" (edits after that go through the listing).
+create table if not exists public.listings (
+  id uuid primary key default gen_random_uuid(),
+  job_id text references public.jobs (id) on delete set null,
+  garment_id text,
+  seller_id uuid references public.profiles (id) on delete set null,
+  title text not null,
+  description text not null default '',
+  category text,
+  brand text,
+  size text,
+  color text,
+  condition text,
+  gender text,
+  defects text,
+  price int not null default 0,
+  currency text not null default 'SEK',
+  images jsonb not null default '[]'::jsonb,
+  cover_image text,
+  status text not null default 'published' check (status in ('published', 'sold', 'unpublished')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (job_id, garment_id)
+);
+
+create table if not exists public.favorites (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  listing_id uuid not null references public.listings (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, listing_id)
+);
+
+create table if not exists public.offers (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.listings (id) on delete cascade,
+  buyer_id uuid references public.profiles (id) on delete set null,
+  seller_id uuid references public.profiles (id) on delete set null,
+  kind text not null default 'offer' check (kind in ('offer', 'buy')),
+  amount int not null default 0,
+  message text,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists listings_status_created_idx on public.listings (status, created_at desc);
+create index if not exists listings_seller_id_idx on public.listings (seller_id);
+create index if not exists listings_category_idx on public.listings (category);
+create index if not exists offers_seller_id_idx on public.offers (seller_id);
+create index if not exists offers_buyer_id_idx on public.offers (buyer_id);
+
 create index if not exists job_files_job_id_idx on public.job_files (job_id);
 create index if not exists jobs_user_id_idx on public.jobs (user_id);
 create index if not exists jobs_created_at_idx on public.jobs (created_at desc);
@@ -73,4 +125,9 @@ create trigger profiles_updated_at
 drop trigger if exists jobs_updated_at on public.jobs;
 create trigger jobs_updated_at
   before update on public.jobs
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists listings_updated_at on public.listings;
+create trigger listings_updated_at
+  before update on public.listings
   for each row execute function public.set_updated_at();

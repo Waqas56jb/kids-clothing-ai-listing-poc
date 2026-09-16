@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { ArrowLeft, Ban, Check } from 'lucide-react'
 import { fileUrl, getJob } from '../../api'
-import { computeInitialGroups } from '../../lib/groups'
+import { conditionLabel, detectionImagePath, garmentImagePath } from '../../lib/garment'
+import { computeInitialGroups, groupSizeLabel } from '../../lib/groups'
 import { approvePricing, getGarmentPricing, getGroupPricing, PRICING_STATUS, rejectPricing, updatePricing } from '../../lib/pricing'
+import { categoryLabel, formatDate, genderLabel } from '../../lib/sv'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -36,15 +38,15 @@ export default function PricingDetailPage({ kind }) {
         const garment = garments.find((g) => g.detection_ids.includes(detectionId))
         if (!garment) return
         setSubject({
-          images: garment.detection_ids,
-          title: garment.category?.replace(/_/g, ' '),
+          images: garment.detection_ids.map((id) => detectionImagePath(garment, id)),
+          title: categoryLabel(garment.category),
           attrs: [
-            ['Category', garment.category],
-            ['Brand', garment.brand],
-            ['Size', garment.size],
-            ['Color', garment.color],
-            ['Condition', garment.defects ? 'Needs review' : garment.condition],
-            ['Gender', garment.gender],
+            ['Kategori', categoryLabel(garment.category)],
+            ['Märke', garment.brand],
+            ['Storlek', garment.size],
+            ['Färg', garment.color],
+            ['Skick', conditionLabel(garment)],
+            ['Passar', genderLabel(garment.gender)],
           ],
         })
         const p = await getGarmentPricing(jobId, garment)
@@ -56,12 +58,12 @@ export default function PricingDetailPage({ kind }) {
         const byId = Object.fromEntries(garments.map((g) => [g.id, g]))
         const members = group.garmentIds.map((id) => byId[id]).filter(Boolean)
         setSubject({
-          images: members.map((g) => g.detection_ids[0]),
-          title: `${group.garmentIds.length} × ${group.category?.replace(/_/g, ' ')}`,
+          images: members.map((g) => garmentImagePath(g)),
+          title: `${group.garmentIds.length} × ${categoryLabel(group.category)}`,
           attrs: [
-            ['Category', group.category],
-            ['Size', group.size],
-            ['Items in bundle', group.garmentIds.length],
+            ['Kategori', categoryLabel(group.category)],
+            ['Storlek', groupSizeLabel(group.size)],
+            ['Plagg i paketet', group.garmentIds.length],
           ],
         })
         const p = await getGroupPricing(jobId, group)
@@ -89,26 +91,26 @@ export default function PricingDetailPage({ kind }) {
   return (
     <div>
       <Link to={backTo} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Back to Pricing Engine
+        <ArrowLeft className="h-4 w-4" /> Tillbaka till prismotorn
       </Link>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-bold capitalize text-slate-800 sm:text-3xl">{subject.title}</h1>
+        <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">{subject.title}</h1>
         <PricingStatusBadge status={pricing.status} />
-        {kind === 'group' && <Badge tone="info">Bundle</Badge>}
+        {kind === 'group' && <Badge tone="info">Paket</Badge>}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.3fr]">
         <div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {subject.images.map((id) => (
-              <div key={id} className="aspect-square overflow-hidden rounded-2xl bg-white p-2 shadow-soft">
-                <img src={fileUrl(jobId, `debug/masks/${id}_masked.png`)} alt="" className="h-full w-full object-contain p-1" />
+            {subject.images.map((path, i) => (
+              <div key={`${path}-${i}`} className="aspect-square overflow-hidden rounded-2xl bg-white p-2 shadow-soft">
+                <img src={fileUrl(jobId, path)} alt="" className="h-full w-full object-contain p-1" />
               </div>
             ))}
           </div>
 
-          <h2 className="mt-6 font-display text-base font-bold text-slate-800">Attributes</h2>
+          <h2 className="mt-6 font-display text-base font-bold text-slate-800">Attribut</h2>
           <dl className="mt-3 space-y-1.5 rounded-2xl bg-white p-4 text-sm shadow-soft">
             {subject.attrs.map(([label, value]) => (
               <div key={label} className="flex justify-between gap-3 py-1">
@@ -120,7 +122,7 @@ export default function PricingDetailPage({ kind }) {
         </div>
 
         <div>
-          <h2 className="font-display text-base font-bold text-slate-800">Pricing Recommendation</h2>
+          <h2 className="font-display text-base font-bold text-slate-800">Prisförslag</h2>
           <div className="mt-3 rounded-2xl bg-white p-5 shadow-soft">
             {editing ? (
               <PricingEditor
@@ -130,24 +132,24 @@ export default function PricingDetailPage({ kind }) {
                   const updated = await updatePricing(pricing.id, { ...payload, actor: 'Admin' })
                   setPricing(updated)
                   setEditing(false)
-                  toast.success('Custom price saved.')
+                  toast.success('Manuellt pris sparat.')
                 }}
               />
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Min / Max</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI:s prisintervall</p>
                     <PricingRange min={pricing.minPrice} max={pricing.maxPrice} currency={pricing.currency} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI Recommended</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI-förslag</p>
                     <p className="font-display text-lg font-bold text-brand-700">
-                      {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">{pricing.currency}</span>
+                      {pricing.recommendedPrice} <span className="text-xs font-semibold text-brand-400">kr</span>
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Confidence</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Säkerhet</p>
                     <PricingConfidence value={pricing.confidence} />
                   </div>
                 </div>
@@ -155,20 +157,20 @@ export default function PricingDetailPage({ kind }) {
                 {pricing.reason && <p className="mt-3 text-sm text-slate-500">{pricing.reason}</p>}
 
                 <div className="mt-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Final Price</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Slutpris</p>
                   <p className="font-display text-2xl font-bold text-slate-800">
                     {isFinal ? (
                       <>
-                        {pricing.finalPrice} <span className="text-sm font-semibold text-slate-400">{pricing.currency}</span>
+                        {pricing.finalPrice} <span className="text-sm font-semibold text-slate-400">kr</span>
                       </>
                     ) : (
-                      <span className="text-base font-semibold text-slate-300">Not set</span>
+                      <span className="text-base font-semibold text-slate-300">Ej satt</span>
                     )}
                   </p>
                   {pricing.adjustedBy && (
                     <p className="text-xs text-slate-400">
-                      {pricing.status === PRICING_STATUS.REJECTED ? 'Rejected' : 'Set'} by {pricing.adjustedBy} ·{' '}
-                      {new Date(pricing.adjustedAt).toLocaleString()}
+                      {pricing.status === PRICING_STATUS.REJECTED ? 'Avvisat' : 'Satt'} av {pricing.adjustedBy} ·{' '}
+                      {formatDate(pricing.adjustedAt)}
                     </p>
                   )}
                 </div>
@@ -179,14 +181,14 @@ export default function PricingDetailPage({ kind }) {
                       size="sm"
                       onClick={async () => {
                         setPricing(await approvePricing(pricing.id, { actor: 'Admin' }))
-                        toast.success('AI price approved.')
+                        toast.success('AI-priset är godkänt.')
                       }}
                     >
-                      <Check className="h-3.5 w-3.5" /> Approve AI Price
+                      <Check className="h-3.5 w-3.5" /> Godkänn AI-pris
                     </Button>
                   )}
                   <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-                    Set Manual Price
+                    Sätt manuellt pris
                   </Button>
                   {pricing.status !== PRICING_STATUS.REJECTED && (
                     <Button
@@ -194,14 +196,14 @@ export default function PricingDetailPage({ kind }) {
                       variant="danger"
                       onClick={async () => {
                         setPricing(await rejectPricing(pricing.id, { actor: 'Admin' }))
-                        toast.info('Recommendation rejected.')
+                        toast.info('Förslaget har avvisats.')
                       }}
                     >
-                      <Ban className="h-3.5 w-3.5" /> Reject
+                      <Ban className="h-3.5 w-3.5" /> Avvisa
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" onClick={() => navigate(backTo)}>
-                    Back
+                    Tillbaka
                   </Button>
                 </div>
               </>

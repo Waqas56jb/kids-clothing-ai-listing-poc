@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2 } from 'lucide-react'
 import { fileUrl, getJob, listJobs } from '../../api'
-import { needsAnyReview, toneForCondition, toneForMatch } from '../../lib/garment'
+import { garmentImagePath, needsAnyReview, toneForCondition, toneForMatch } from '../../lib/garment'
+import { categoryLabel, matchStatusLabel } from '../../lib/sv'
 import Badge from '../ui/Badge'
 import Card from '../ui/Card'
 import Skeleton from '../ui/Skeleton'
@@ -42,14 +43,14 @@ export default function ReviewQueuePage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Review Queue</h1>
+      <h1 className="font-display text-2xl font-bold text-slate-800 sm:text-3xl">Granskningskö</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Every garment across all projects with a flagged defect or an uncertain match — nothing here is auto-published.
+        Alla plagg i alla projekt med möjligt slitage eller en osäker matchning – inget här publiceras automatiskt.
       </p>
 
       {items.length === 0 ? (
         <div className="mt-6">
-          <EmptyState icon={CheckCircle2} title="Nothing needs review" description="All garments are high-confidence right now." />
+          <EmptyState icon={CheckCircle2} title="Inget att granska" description="Alla plagg har hög säkerhet just nu." />
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -58,19 +59,17 @@ export default function ReviewQueuePage() {
               <Card hover className="overflow-hidden">
                 <div className="aspect-square bg-surface">
                   <img
-                    src={fileUrl(jobId, `debug/masks/${garment.detection_ids[0]}_masked.png`)}
+                    src={fileUrl(jobId, garmentImagePath(garment))}
                     alt=""
                     className="h-full w-full object-contain p-3"
                   />
                 </div>
                 <div className="space-y-2 p-4">
-                  <p className="truncate text-sm font-semibold capitalize text-slate-700">
-                    {garment.category.replace(/_/g, ' ')}
-                  </p>
-                  <p className="truncate text-xs text-slate-400">Project {jobId}</p>
+                  <p className="truncate text-sm font-semibold text-slate-700">{categoryLabel(garment.category)}</p>
+                  <p className="truncate text-xs text-slate-400">Projekt {jobId}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge tone={toneForMatch(garment.match_status)}>{garment.match_status.replace(/_/g, ' ')}</Badge>
-                    {garment.defects && <Badge tone={toneForCondition(garment.condition, true)}>Damage flagged</Badge>}
+                    <Badge tone={toneForMatch(garment.match_status)}>{matchStatusLabel(garment.match_status)}</Badge>
+                    {garment.defects && <Badge tone={toneForCondition(garment.condition, true)}>Möjligt slitage</Badge>}
                   </div>
                 </div>
               </Card>

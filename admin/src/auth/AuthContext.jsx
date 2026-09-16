@@ -11,7 +11,7 @@ async function authRequest(path, body) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Auth failed')
+    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Inloggningen misslyckades')
   }
   return data
 }
@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
     }
     if ((next.profile?.role || next.user?.role) !== 'admin') {
       clearSession()
-      throw new Error('Admin access required')
+      throw new Error('Kontot saknar adminbehörighet')
     }
     setStoredSession(next)
     setSession({ access_token: next.access_token, user: next.user })

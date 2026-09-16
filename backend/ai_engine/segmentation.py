@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import cv2
@@ -9,6 +10,7 @@ from PIL import Image
 from ai_engine.config import SETTINGS
 
 _model = None
+_lock = threading.Lock()
 
 
 def _checkpoint_path() -> Path:
@@ -23,10 +25,16 @@ def _checkpoint_path() -> Path:
 def get_model():
     global _model
     if _model is None:
-        from ultralytics import SAM
+        with _lock:
+            if _model is None:
+                from ultralytics import SAM
 
-        _model = SAM(str(_checkpoint_path()))
+                _model = SAM(str(_checkpoint_path()))
     return _model
+
+
+def warm_up() -> None:
+    get_model()
 
 
 def _rectangular_fallback_mask(image_size: tuple[int, int], bbox: tuple[float, float, float, float]) -> np.ndarray:
@@ -79,16 +87,23 @@ def _close_small_boundary_gaps(mask: np.ndarray, bbox: tuple[float, float, float
     return closed.astype(bool)
 
 
-def segment_garment(image: Image.Image, bbox: tuple[float, float, float, float]) -> np.ndarray:
-    """Return a boolean mask, same (H, W) as `image`, for the garment inside `bbox`."""
+def segment_garment(image: Image.Image, bbox: tuple[float, float, float, float]) -> tuple[np.ndarray, bool]:
+    """Return (mask, is_fallback) -- a boolean mask, same (H, W) as `image`,
+    for the garment inside `bbox`. `is_fallback` is True when SAM2 produced
+    nothing usable and the mask is just the rectangle (callers must then
+    show the original crop instead of a "cutout")."""
     model = get_model()
-    results = model(image, bboxes=[list(bbox)], verbose=False)
+    # ultralytics models are not safe to call from several threads at once.
+    with _lock:
+        results = model(image, bboxes=[list(bbox)], verbose=False)
 
     if not results or results[0].masks is None or len(results[0].masks.data) == 0:
-        return _rectangular_fallback_mask(image.size, bbox)
+        return _rectangular_fallback_mask(image.size, bbox), True
 
     mask_tensor = results[0].masks.data[0].cpu().numpy()
     mask_image = Image.fromarray((mask_tensor * 255).astype(np.uint8)).resize(image.size, Image.NEAREST)
     mask = np.array(mask_image) > 127
+    if not mask.any():
+        return _rectangular_fallback_mask(image.size, bbox), True
     mask = _largest_connected_component(mask)
-    return _close_small_boundary_gaps(mask, bbox)
+    return _close_small_boundary_gaps(mask, bbox), False
