@@ -6,6 +6,12 @@ import LandingPage from './components/marketing/LandingPage'
 import PublicLayout from './components/marketplace/PublicLayout'
 import MarketplacePage from './components/marketplace/MarketplacePage'
 import ListingDetailPage from './components/marketplace/ListingDetailPage'
+import CartPage from './components/shop/CartPage'
+import CheckoutPage from './components/shop/CheckoutPage'
+import PaymentPage from './components/shop/PaymentPage'
+import OrderConfirmationPage from './components/shop/OrderConfirmationPage'
+import NotificationsPage from './components/shop/NotificationsPage'
+import MessagesPage from './components/shop/MessagesPage'
 import { useAuth } from './auth/AuthContext'
 
 import DashboardPage from './components/seller/DashboardPage'
@@ -35,6 +41,18 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route path="/marknad" element={<MarketplacePage />} />
         <Route path="/marknad/:listingId" element={<ListingDetailPage />} />
+      </Route>
+
+      {/* Shopping: needs an account, keeps the marketplace look. */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<PublicLayout />}>
+          <Route path="/varukorg" element={<CartPage />} />
+          <Route path="/kassa" element={<CheckoutPage />} />
+          <Route path="/kassa/betala/:orderId" element={<PaymentPage />} />
+          <Route path="/kassa/klart/:orderId" element={<OrderConfirmationPage />} />
+          <Route path="/notiser" element={<NotificationsPage />} />
+          <Route path="/meddelanden" element={<MessagesPage />} />
+        </Route>
       </Route>
 
       <Route element={<ProtectedRoute />}>

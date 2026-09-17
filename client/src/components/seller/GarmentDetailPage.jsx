@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft, Image as ImageIcon, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Image as ImageIcon, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob, patchWorkspace } from '../../api'
+import { deleteGarmentImage, fileUrl, getJob, patchWorkspace } from '../../api'
 import { detectionImagePath, detectionVariant, toneForCondition, toneForMatch } from '../../lib/garment'
 import {
   categoryLabel,
@@ -155,6 +155,21 @@ export default function GarmentDetailPage() {
     }
   }
 
+  async function handleDeleteImage(detectionId) {
+    if (!window.confirm('Ta bort den här bilden från plagget? Den visas då inte i annonsen.')) return
+    try {
+      const data = await deleteGarmentImage(jobId, garment.id, detectionId)
+      const refreshed = data.result?.garments.find((g) => g.id === garment.id)
+      if (refreshed) {
+        setJob(data)
+        setGarment(refreshed)
+      }
+      toast.success('Bilden är borttagen.')
+    } catch (err) {
+      toast.error(err.message || 'Kunde inte ta bort bilden')
+    }
+  }
+
   async function handleApprovePricing() {
     const updated = await approvePricing(pricing.id)
     setPricing(updated)
@@ -245,7 +260,7 @@ export default function GarmentDetailPage() {
               const variant = detectionVariant(garment, id)
               const reason = variant?.cutout_rejected_reason
               return (
-                <div key={id} className="overflow-hidden rounded-2xl bg-white shadow-soft">
+                <div key={id} className="group relative overflow-hidden rounded-2xl bg-white shadow-soft">
                   <div className="aspect-square">
                     <img
                       src={fileUrl(jobId, detectionImagePath(garment, id, { original: showOriginal }))}
@@ -253,6 +268,17 @@ export default function GarmentDetailPage() {
                       className="h-full w-full object-contain p-2"
                     />
                   </div>
+                  {garment.detection_ids.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteImage(id)}
+                      aria-label="Ta bort bild"
+                      title="Ta bort bild"
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 opacity-0 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                   {!showOriginal && variant && (
                     <p className="border-t border-slate-100 px-2 py-1.5 text-[11px] text-slate-400">
                       {variant.display_kind === 'cutout'
@@ -266,7 +292,8 @@ export default function GarmentDetailPage() {
           </div>
           <p className="mt-2 text-xs text-slate-400">
             {garment.images.length} {plural(garment.images.length, 'bild', 'bilder')} matchade till det här plagget.
-            Originalfotot används alltid när AI-frilägningen inte blir ren.
+            Originalfotot används alltid när AI-frilägningen inte blir ren. Håll muspekaren över en bild för att ta bort
+            den om den inte hör hit.
           </p>
         </div>
 

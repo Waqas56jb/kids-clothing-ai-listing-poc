@@ -90,15 +90,55 @@ export const LISTING_STATUS_SV = {
   draft: 'Utkast',
   approved: 'Godkänd',
   published: 'Publicerad',
+  reserved: 'Reserverad',
   sold: 'Såld',
   unpublished: 'Avpublicerad',
 }
 
 export const OFFER_STATUS_SV = {
   pending: 'Väntar på svar',
+  countered: 'Motbud lagt',
   accepted: 'Accepterat',
   declined: 'Avböjt',
   cancelled: 'Tillbakadraget',
+  completed: 'Betalt',
+}
+
+export const ORDER_STATUS_SV = {
+  pending_payment: 'Väntar på betalning',
+  paid: 'Betald',
+  cancelled: 'Avbruten',
+}
+
+export const ORDER_ITEM_STATUS_SV = {
+  pending: 'Väntar på betalning',
+  paid: 'Betald – ska skickas',
+  shipped: 'Skickad',
+  delivered: 'Levererad',
+  cancelled: 'Avbruten',
+}
+
+export const NOTIFICATION_KIND_SV = {
+  purchase: 'Köp',
+  sale: 'Försäljning',
+  offer: 'Nytt bud',
+  counteroffer: 'Motbud',
+  offer_accepted: 'Bud accepterat',
+  offer_declined: 'Bud avböjt',
+  message: 'Meddelande',
+  order_shipped: 'Skickat',
+}
+
+export function orderStatusLabel(key) {
+  return ORDER_STATUS_SV[key] ?? key
+}
+
+export function orderItemStatusLabel(key) {
+  return ORDER_ITEM_STATUS_SV[key] ?? key
+}
+
+export function notificationKindLabel(key) {
+  return NOTIFICATION_KIND_SV[key] ?? 'Notis'
 }
 
 export const STAGE_SV = {

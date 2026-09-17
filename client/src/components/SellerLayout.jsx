@@ -3,13 +3,17 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Baby,
+  Bell,
   ChevronLeft,
   ChevronRight,
   HandCoins,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageCircle,
+  PackageCheck,
   PanelLeftClose,
+  ShoppingCart,
   Store,
   Tag,
   UploadCloud,
@@ -17,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { BRAND } from '../lib/sv'
+import { useCounts } from '../lib/useCounts'
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : 'https://admin.miniplagg.com')
 
@@ -25,8 +30,21 @@ const NAV_LINKS = [
   { to: '/upload', label: 'Ny uppladdning', icon: UploadCloud },
   { to: '/annonser', label: 'Mina annonser', icon: Tag },
   { to: '/annonser?flik=bud', label: 'Bud & köp', icon: HandCoins },
+  { to: '/annonser?flik=ordrar', label: 'Ordrar', icon: PackageCheck },
+  { to: '/notiser', label: 'Notiser', icon: Bell, badge: 'unread' },
+  { to: '/meddelanden', label: 'Meddelanden', icon: MessageCircle, badge: 'unreadMessages' },
+  { to: '/varukorg', label: 'Varukorg', icon: ShoppingCart, badge: 'cartCount' },
   { to: '/marknad', label: 'Marknaden', icon: Store },
 ]
+
+function CountBadge({ value, className = '' }) {
+  if (!value) return null
+  return (
+    <span className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-ink ${className}`}>
+      {value > 99 ? '99+' : value}
+    </span>
+  )
+}
 
 function useCollapsed(key) {
   const [collapsed, setCollapsed] = useState(() => {
@@ -46,7 +64,7 @@ function useCollapsed(key) {
   return [collapsed, setCollapsed]
 }
 
-function NavItem({ to, label, icon: Icon, end, collapsed, onClick }) {
+function NavItem({ to, label, icon: Icon, end, collapsed, onClick, count }) {
   return (
     <NavLink
       to={to}
@@ -54,18 +72,19 @@ function NavItem({ to, label, icon: Icon, end, collapsed, onClick }) {
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
-        `flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+        `relative flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors ${
           collapsed ? 'justify-center px-0' : ''
         } ${isActive ? 'bg-white text-brand-800 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white'}`
       }
     >
       <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-      {!collapsed && <span className="truncate">{label}</span>}
+      {!collapsed && <span className="flex-1 truncate">{label}</span>}
+      <CountBadge value={count} className={collapsed ? 'absolute -right-0.5 -top-0.5' : ''} />
     </NavLink>
   )
 }
 
-function SidebarBody({ collapsed, onNavigate, onToggle }) {
+function SidebarBody({ collapsed, onNavigate, onToggle, counts }) {
   const { profile, user, signOut } = useAuth()
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Säljare'
   const initial = displayName.slice(0, 1).toUpperCase()
@@ -95,8 +114,8 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
       </div>
 
       <nav className="mt-8 flex flex-col gap-1">
-        {NAV_LINKS.map((link) => (
-          <NavItem key={link.to} {...link} collapsed={collapsed} onClick={onNavigate} />
+        {NAV_LINKS.map(({ badge, ...link }) => (
+          <NavItem key={link.to} {...link} count={badge ? counts?.[badge] : 0} collapsed={collapsed} onClick={onNavigate} />
         ))}
       </nav>
 
@@ -138,6 +157,8 @@ function SidebarBody({ collapsed, onNavigate, onToggle }) {
 
 export default function SellerLayout() {
   const location = useLocation()
+  const { session } = useAuth()
+  const counts = useCounts(session)
   const [collapsed, setCollapsed] = useCollapsed('seller-sidebar-collapsed')
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -151,7 +172,7 @@ export default function SellerLayout() {
         <div className="bg-grain pointer-events-none absolute inset-0 opacity-35" />
         <div className="pointer-events-none absolute -left-10 top-24 h-40 w-40 rounded-full bg-moss/30 blur-3xl" />
         <div className="relative flex h-full flex-col">
-          <SidebarBody collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+          <SidebarBody collapsed={collapsed} counts={counts} onToggle={() => setCollapsed((v) => !v)} />
         </div>
       </aside>
 
@@ -174,7 +195,7 @@ export default function SellerLayout() {
               >
                 <X className="h-5 w-5" />
               </button>
-              <SidebarBody collapsed={false} onNavigate={() => setMobileOpen(false)} onToggle={() => setMobileOpen(false)} />
+              <SidebarBody collapsed={false} counts={counts} onNavigate={() => setMobileOpen(false)} onToggle={() => setMobileOpen(false)} />
             </motion.aside>
           </motion.div>
         )}
@@ -191,6 +212,16 @@ export default function SellerLayout() {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-display text-lg font-semibold text-ink">{BRAND}</span>
+          <div className="ml-auto flex items-center gap-1">
+            <Link to="/notiser" className="relative flex h-11 w-11 items-center justify-center rounded-2xl text-ink hover:bg-sand" aria-label="Notiser">
+              <Bell className="h-5 w-5" />
+              <CountBadge value={counts.unread + counts.unreadMessages} className="absolute right-0.5 top-0.5" />
+            </Link>
+            <Link to="/varukorg" className="relative flex h-11 w-11 items-center justify-center rounded-2xl text-ink hover:bg-sand" aria-label="Varukorg">
+              <ShoppingCart className="h-5 w-5" />
+              <CountBadge value={counts.cartCount} className="absolute right-0.5 top-0.5" />
+            </Link>
+          </div>
         </header>
 
         <motion.main

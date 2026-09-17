@@ -413,13 +413,21 @@ def list_all_listings() -> list[dict[str, Any]]:
 
 
 def update_listing(listing_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
-    allowed = {"title", "description", "price", "status", "category", "brand", "size", "color", "condition", "gender", "defects"}
+    from psycopg.types.json import Jsonb
+
+    allowed = {
+        "title", "description", "price", "status", "category", "brand", "size", "color", "condition", "gender", "defects",
+        "images", "cover_image",
+    }
     sets: list[str] = []
     params: list[Any] = []
     for key, value in patch.items():
         if key in allowed:
             sets.append(f"{key} = %s")
-            params.append(int(value) if key == "price" and value is not None else value)
+            if key == "images":
+                params.append(Jsonb(list(value or [])))
+            else:
+                params.append(int(value) if key == "price" and value is not None else value)
     if not sets:
         return fetch_listing(listing_id)
     sets.append("updated_at = now()")
@@ -466,7 +474,8 @@ def _offer_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
 
 _OFFER_COLUMNS = (
     "o.id, o.listing_id, o.buyer_id, o.seller_id, o.kind, o.amount, o.message, o.status, o.created_at, o.updated_at, "
-    "l.title as listing_title, l.cover_image as listing_cover, l.price as listing_price, "
+    "o.counter_amount, o.counter_message, "
+    "l.title as listing_title, l.cover_image as listing_cover, l.price as listing_price, l.status as listing_status, "
     "b.full_name as buyer_name, s.full_name as seller_name"
 )
 
@@ -517,6 +526,356 @@ def list_offers(user_id: str) -> dict[str, list[dict[str, Any]]]:
 def update_offer_status(offer_id: str, status: str) -> dict[str, Any] | None:
     _pg_execute("update public.offers set status = %s, updated_at = now() where id = %s", (status, offer_id))
     return fetch_offer(offer_id)
+
+
+def update_offer(offer_id: str, **fields: Any) -> dict[str, Any] | None:
+    allowed = {"status", "counter_amount", "counter_message", "amount"}
+    sets = [f"{key} = %s" for key in fields if key in allowed]
+    params: list[Any] = [value for key, value in fields.items() if key in allowed]
+    if sets:
+        sets.append("updated_at = now()")
+        params.append(offer_id)
+        _pg_execute(f"update public.offers set {', '.join(sets)} where id = %s", tuple(params))
+    return fetch_offer(offer_id)
+
+
+def accepted_offer_for(listing_id: str, buyer_id: str) -> dict[str, Any] | None:
+    row = _pg_execute(
+        f"select {_OFFER_COLUMNS} from public.offers o join public.listings l on l.id = o.listing_id "
+        "left join public.profiles b on b.id = o.buyer_id left join public.profiles s on s.id = o.seller_id "
+        "where o.listing_id = %s and o.buyer_id = %s and o.status = 'accepted' order by o.updated_at desc limit 1",
+        (listing_id, buyer_id),
+        fetch="one",
+    )
+    return _offer_row(row)
+
+
+# ---------------------------------------------------------------------------
+# Settings, notifications, push subscriptions
+# ---------------------------------------------------------------------------
+
+
+def get_setting(key: str) -> str | None:
+    row = _pg_execute("select value from public.app_settings where key = %s", (key,), fetch="one")
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str) -> None:
+    _pg_execute(
+        "insert into public.app_settings (key, value) values (%s, %s) "
+        "on conflict (key) do update set value = excluded.value, updated_at = now()",
+        (key, value),
+    )
+
+
+def _notification_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not row:
+        return None
+    data = dict(row)
+    data["id"] = str(data["id"])
+    data["user_id"] = str(data["user_id"])
+    data["data"] = dict(data.get("data") or {})
+    return data
+
+
+def insert_notification(user_id: str, kind: str, title: str, body: str, link: str | None, data: dict[str, Any] | None) -> dict[str, Any]:
+    from psycopg.types.json import Jsonb
+
+    row = _pg_execute(
+        "insert into public.notifications (user_id, kind, title, body, link, data) values (%s, %s, %s, %s, %s, %s) returning *",
+        (user_id, kind, title, body, link, Jsonb(data or {})),
+        fetch="one",
+    )
+    return _notification_row(row)  # type: ignore[return-value]
+
+
+def list_notifications(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        "select * from public.notifications where user_id = %s order by created_at desc limit %s",
+        (user_id, int(limit)),
+        fetch="all",
+    )
+    return [_notification_row(row) for row in (rows or [])]
+
+
+def unread_notification_count(user_id: str) -> int:
+    row = _pg_execute(
+        "select count(*) as count from public.notifications where user_id = %s and read_at is null",
+        (user_id,),
+        fetch="one",
+    )
+    return int((row or {}).get("count") or 0)
+
+
+def mark_notifications_read(user_id: str, ids: list[str] | None = None) -> None:
+    if ids:
+        _pg_execute(
+            "update public.notifications set read_at = now() where user_id = %s and read_at is null and id = any(%s::uuid[])",
+            (user_id, ids),
+        )
+    else:
+        _pg_execute("update public.notifications set read_at = now() where user_id = %s and read_at is null", (user_id,))
+
+
+def upsert_push_subscription(user_id: str, endpoint: str, p256dh: str, auth: str) -> None:
+    _pg_execute(
+        "insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%s, %s, %s, %s) "
+        "on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth",
+        (user_id, endpoint, p256dh, auth),
+    )
+
+
+def delete_push_subscription(endpoint: str, user_id: str | None = None) -> None:
+    if user_id:
+        _pg_execute("delete from public.push_subscriptions where endpoint = %s and user_id = %s", (endpoint, user_id))
+    else:
+        _pg_execute("delete from public.push_subscriptions where endpoint = %s", (endpoint,))
+
+
+def list_push_subscriptions(user_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute("select endpoint, p256dh, auth from public.push_subscriptions where user_id = %s", (user_id,), fetch="all")
+    return [dict(row) for row in (rows or [])]
+
+
+# ---------------------------------------------------------------------------
+# Messages about a listing
+# ---------------------------------------------------------------------------
+
+_MESSAGE_COLUMNS = (
+    "m.id, m.listing_id, m.sender_id, m.recipient_id, m.body, m.read_at, m.created_at, "
+    "s.full_name as sender_name, r.full_name as recipient_name, l.title as listing_title, l.cover_image as listing_cover"
+)
+
+
+def _message_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not row:
+        return None
+    data = dict(row)
+    for key in ("id", "listing_id", "sender_id", "recipient_id"):
+        if data.get(key) is not None:
+            data[key] = str(data[key])
+    return data
+
+
+def insert_message(listing_id: str, sender_id: str, recipient_id: str, body: str) -> dict[str, Any]:
+    row = _pg_execute(
+        "insert into public.messages (listing_id, sender_id, recipient_id, body) values (%s, %s, %s, %s) returning id",
+        (listing_id, sender_id, recipient_id, body),
+        fetch="one",
+    )
+    return fetch_message(str(row["id"]))  # type: ignore[index]
+
+
+def fetch_message(message_id: str) -> dict[str, Any] | None:
+    row = _pg_execute(
+        f"select {_MESSAGE_COLUMNS} from public.messages m join public.listings l on l.id = m.listing_id "
+        "left join public.profiles s on s.id = m.sender_id left join public.profiles r on r.id = m.recipient_id where m.id = %s",
+        (message_id,),
+        fetch="one",
+    )
+    return _message_row(row)
+
+
+def list_threads(user_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        """
+        with mine as (
+          select m.*, case when m.sender_id = %s then m.recipient_id else m.sender_id end as other_id
+          from public.messages m where m.sender_id = %s or m.recipient_id = %s
+        ),
+        latest as (
+          select distinct on (listing_id, other_id) listing_id, other_id, body, created_at, sender_id
+          from mine order by listing_id, other_id, created_at desc
+        )
+        select latest.listing_id, latest.other_id, latest.body as last_body, latest.created_at as last_at,
+               latest.sender_id as last_sender_id,
+               p.full_name as other_name, l.title as listing_title, l.cover_image as listing_cover, l.seller_id as listing_seller_id,
+               (select count(*) from public.messages u where u.listing_id = latest.listing_id and u.sender_id = latest.other_id
+                  and u.recipient_id = %s and u.read_at is null) as unread
+        from latest
+        join public.listings l on l.id = latest.listing_id
+        left join public.profiles p on p.id = latest.other_id
+        order by latest.created_at desc
+        """,
+        (user_id, user_id, user_id, user_id),
+        fetch="all",
+    )
+    threads = []
+    for row in rows or []:
+        data = dict(row)
+        for key in ("listing_id", "other_id", "last_sender_id", "listing_seller_id"):
+            if data.get(key) is not None:
+                data[key] = str(data[key])
+        data["unread"] = int(data.get("unread") or 0)
+        threads.append(data)
+    return threads
+
+
+def list_conversation(user_id: str, listing_id: str, other_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        f"select {_MESSAGE_COLUMNS} from public.messages m join public.listings l on l.id = m.listing_id "
+        "left join public.profiles s on s.id = m.sender_id left join public.profiles r on r.id = m.recipient_id "
+        "where m.listing_id = %s and ((m.sender_id = %s and m.recipient_id = %s) or (m.sender_id = %s and m.recipient_id = %s)) "
+        "order by m.created_at asc",
+        (listing_id, user_id, other_id, other_id, user_id),
+        fetch="all",
+    )
+    return [_message_row(row) for row in (rows or [])]
+
+
+def mark_messages_read(user_id: str, listing_id: str, other_id: str) -> None:
+    _pg_execute(
+        "update public.messages set read_at = now() where listing_id = %s and recipient_id = %s and sender_id = %s and read_at is null",
+        (listing_id, user_id, other_id),
+    )
+
+
+def unread_message_count(user_id: str) -> int:
+    row = _pg_execute(
+        "select count(*) as count from public.messages where recipient_id = %s and read_at is null",
+        (user_id,),
+        fetch="one",
+    )
+    return int((row or {}).get("count") or 0)
+
+
+# ---------------------------------------------------------------------------
+# Cart + orders
+# ---------------------------------------------------------------------------
+
+
+def list_cart(user_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        f"select {_LISTING_COLUMNS}, c.price as cart_price, c.offer_id, c.added_at from public.cart_items c "
+        "join public.listings l on l.id = c.listing_id left join public.profiles p on p.id = l.seller_id "
+        "where c.user_id = %s order by c.added_at desc",
+        (user_id,),
+        fetch="all",
+    )
+    items = []
+    for row in rows or []:
+        data = _listing_row(row) or {}
+        data["cart_price"] = int(row.get("cart_price") or 0)
+        data["offer_id"] = str(row["offer_id"]) if row.get("offer_id") else None
+        items.append(data)
+    return items
+
+
+def add_cart_item(user_id: str, listing_id: str, price: int, offer_id: str | None = None) -> None:
+    _pg_execute(
+        "insert into public.cart_items (user_id, listing_id, price, offer_id) values (%s, %s, %s, %s) "
+        "on conflict (user_id, listing_id) do update set price = excluded.price, offer_id = coalesce(excluded.offer_id, public.cart_items.offer_id)",
+        (user_id, listing_id, int(price), offer_id),
+    )
+
+
+def remove_cart_item(user_id: str, listing_id: str) -> None:
+    _pg_execute("delete from public.cart_items where user_id = %s and listing_id = %s", (user_id, listing_id))
+
+
+def clear_cart(user_id: str) -> None:
+    _pg_execute("delete from public.cart_items where user_id = %s", (user_id,))
+
+
+def cart_count(user_id: str) -> int:
+    row = _pg_execute("select count(*) as count from public.cart_items where user_id = %s", (user_id,), fetch="one")
+    return int((row or {}).get("count") or 0)
+
+
+def _order_item_row(row: dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    for key in ("id", "order_id", "listing_id", "seller_id", "offer_id"):
+        if data.get(key) is not None:
+            data[key] = str(data[key])
+    return data
+
+
+def _order_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not row:
+        return None
+    data = dict(row)
+    data["id"] = str(data["id"])
+    if data.get("buyer_id") is not None:
+        data["buyer_id"] = str(data["buyer_id"])
+    data["shipping"] = dict(data.get("shipping") or {})
+    return data
+
+
+def create_order(buyer_id: str, items: list[dict[str, Any]], shipping: dict[str, Any], total: int, payment_provider: str) -> dict[str, Any]:
+    from psycopg.types.json import Jsonb
+
+    order = _pg_execute(
+        "insert into public.orders (buyer_id, total, shipping, payment_provider) values (%s, %s, %s, %s) returning id",
+        (buyer_id, int(total), Jsonb(shipping), payment_provider),
+        fetch="one",
+    )
+    order_id = str(order["id"])  # type: ignore[index]
+    for item in items:
+        _pg_execute(
+            "insert into public.order_items (order_id, listing_id, seller_id, offer_id, title, price, cover_image) "
+            "values (%s, %s, %s, %s, %s, %s, %s)",
+            (order_id, item["listing_id"], item.get("seller_id"), item.get("offer_id"), item["title"], int(item["price"]), item.get("cover_image")),
+        )
+    return fetch_order(order_id)  # type: ignore[return-value]
+
+
+def fetch_order(order_id: str) -> dict[str, Any] | None:
+    row = _pg_execute(
+        "select o.*, b.full_name as buyer_name, b.email as buyer_email from public.orders o "
+        "left join public.profiles b on b.id = o.buyer_id where o.id = %s",
+        (order_id,),
+        fetch="one",
+    )
+    order = _order_row(row)
+    if not order:
+        return None
+    items = _pg_execute(
+        "select i.*, s.full_name as seller_name from public.order_items i left join public.profiles s on s.id = i.seller_id "
+        "where i.order_id = %s order by i.created_at asc",
+        (order_id,),
+        fetch="all",
+    )
+    order["items"] = [_order_item_row(item) for item in (items or [])]
+    return order
+
+
+def update_order(order_id: str, **fields: Any) -> dict[str, Any] | None:
+    allowed = {"status", "payment_ref", "paid_at", "payment_provider"}
+    sets = [f"{key} = %s" for key in fields if key in allowed]
+    params: list[Any] = [value for key, value in fields.items() if key in allowed]
+    if sets:
+        params.append(order_id)
+        _pg_execute(f"update public.orders set {', '.join(sets)} where id = %s", tuple(params))
+    return fetch_order(order_id)
+
+
+def update_order_items_status(order_id: str, status: str) -> None:
+    _pg_execute("update public.order_items set status = %s, updated_at = now() where order_id = %s", (status, order_id))
+
+
+def update_order_item(item_id: str, status: str) -> dict[str, Any] | None:
+    _pg_execute("update public.order_items set status = %s, updated_at = now() where id = %s", (status, item_id))
+    row = _pg_execute("select * from public.order_items where id = %s", (item_id,), fetch="one")
+    return _order_item_row(row) if row else None
+
+
+def list_orders(user_id: str) -> dict[str, list[dict[str, Any]]]:
+    purchase_rows = _pg_execute(
+        "select id from public.orders where buyer_id = %s order by created_at desc", (user_id,), fetch="all"
+    )
+    purchases = [fetch_order(str(row["id"])) for row in (purchase_rows or [])]
+    sale_rows = _pg_execute(
+        "select distinct order_id from public.order_items where seller_id = %s", (user_id,), fetch="all"
+    )
+    sales = []
+    for row in sale_rows or []:
+        order = fetch_order(str(row["order_id"]))
+        if not order or order.get("status") == "pending_payment":
+            continue
+        order["items"] = [item for item in order["items"] if item.get("seller_id") == user_id]
+        sales.append(order)
+    sales.sort(key=lambda o: str(o.get("created_at")), reverse=True)
+    return {"purchases": [p for p in purchases if p], "sales": sales}
 
 
 def to_iso(unix_seconds: float) -> str:

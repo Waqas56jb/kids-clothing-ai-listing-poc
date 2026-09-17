@@ -20,3 +20,5 @@ psycopg[binary]
 PyJWT
 bcrypt
 boto3
+pywebpush
+stripe

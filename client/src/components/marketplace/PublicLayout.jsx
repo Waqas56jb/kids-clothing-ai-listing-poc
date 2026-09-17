@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Baby, Menu, Store, UploadCloud, X } from 'lucide-react'
+import { Baby, Bell, Menu, MessageCircle, ShoppingCart, Store, UploadCloud, X } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { BRAND } from '../../lib/sv'
+import { useCounts } from '../../lib/useCounts'
 
 const NAV = [
   { to: '/marknad', label: 'Marknaden', icon: Store },
@@ -16,11 +17,43 @@ function navClass({ isActive }) {
   }`
 }
 
+function CountBadge({ value }) {
+  if (!value) return null
+  return (
+    <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-ink ring-2 ring-surface">
+      {value > 99 ? '99+' : value}
+    </span>
+  )
+}
+
+function IconLink({ to, label, icon: Icon, count, onClick }) {
+  return (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={({ isActive }) =>
+        `relative flex h-10 w-10 items-center justify-center rounded-full transition ${isActive ? 'bg-ink text-sand' : 'text-ink/70 hover:bg-ink/5 hover:text-ink'}`
+      }
+    >
+      <Icon className="h-5 w-5" />
+      <CountBadge value={count} />
+    </NavLink>
+  )
+}
+
 export default function PublicLayout() {
   const { session, profile } = useAuth()
+  const counts = useCounts(session)
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const next = encodeURIComponent(`${location.pathname}${location.search}`)
+  const accountLinks = [
+    { to: '/notiser', label: 'Notiser', icon: Bell, count: counts.unread },
+    { to: '/meddelanden', label: 'Meddelanden', icon: MessageCircle, count: counts.unreadMessages },
+    { to: '/varukorg', label: 'Varukorg', icon: ShoppingCart, count: counts.cartCount },
+  ]
 
   return (
     <div className="min-h-dvh bg-surface text-ink">
@@ -45,9 +78,14 @@ export default function PublicLayout() {
               </NavLink>
             ))}
             {session ? (
-              <NavLink to="/dashboard" className={navClass}>
-                Min sida{profile?.full_name ? ` · ${profile.full_name.split(' ')[0]}` : ''}
-              </NavLink>
+              <>
+                {accountLinks.map((item) => (
+                  <IconLink key={item.to} {...item} />
+                ))}
+                <NavLink to="/dashboard" className={navClass}>
+                  Min sida{profile?.full_name ? ` · ${profile.full_name.split(' ')[0]}` : ''}
+                </NavLink>
+              </>
             ) : (
               <>
                 <Link to={`/login?next=${next}`} className="rounded-full px-3.5 py-2 text-sm font-medium text-ink/70 hover:text-ink">
@@ -63,14 +101,17 @@ export default function PublicLayout() {
             )}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ink/5 text-ink md:hidden"
-            aria-label="Meny"
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-1 md:hidden">
+            {session && accountLinks.map((item) => <IconLink key={item.to} {...item} onClick={() => setOpen(false)} />)}
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ink/5 text-ink"
+              aria-label="Meny"
+            >
+              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         <AnimatePresence>
@@ -87,9 +128,17 @@ export default function PublicLayout() {
                 </NavLink>
               ))}
               {session ? (
-                <Link to="/dashboard" onClick={() => setOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-ink hover:bg-sand">
-                  Min sida
-                </Link>
+                <>
+                  {accountLinks.map((item) => (
+                    <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink hover:bg-sand">
+                      <item.icon className="h-4 w-4" /> {item.label}
+                      {item.count > 0 && <span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-bold text-ink">{item.count}</span>}
+                    </NavLink>
+                  ))}
+                  <Link to="/dashboard" onClick={() => setOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-ink hover:bg-sand">
+                    Min sida
+                  </Link>
+                </>
               ) : (
                 <div className="mt-1 grid grid-cols-2 gap-2 border-t border-ink/5 pt-2">
                   <Link to={`/login?next=${next}`} onClick={() => setOpen(false)} className="rounded-xl bg-sand px-3 py-2.5 text-center text-sm font-semibold">

@@ -242,6 +242,7 @@ def apply_to_result(result: dict[str, Any] | None, workspace: dict[str, Any] | N
     workspace = workspace or {}
     edits = workspace.get("garment_edits") or {}
     decisions = workspace.get("match_decisions") or {}
+    removed = workspace.get("removed_images") or {}
     for garment in result.get("garments") or []:
         extra = edits.get(garment.get("id")) or {}
         for field in EDITABLE_FIELDS:
@@ -249,7 +250,39 @@ def apply_to_result(result: dict[str, Any] | None, workspace: dict[str, Any] | N
                 garment[field] = extra[field]
         if garment.get("id") in decisions:
             garment["match_decision"] = decisions[garment["id"]]
+        gone = set(removed.get(garment.get("id")) or [])
+        if gone:
+            _drop_images(garment, gone)
     return result
+
+
+def _drop_images(garment: dict[str, Any], gone: set[str]) -> None:
+    """Hide detection images the seller/admin deleted, keeping at least one."""
+    kept_ids = [det_id for det_id in garment.get("detection_ids") or [] if det_id not in gone]
+    if not kept_ids:
+        return
+    garment["detection_ids"] = kept_ids
+    variants = [v for v in garment.get("image_variants") or [] if v.get("detection_id") not in gone]
+    garment["image_variants"] = variants
+    if variants:
+        garment["images"] = sorted({v["image_id"] for v in variants})
+        cover = next((v for v in variants if v.get("display_kind") == "cutout"), variants[0])
+        garment["display_image"] = cover.get("display")
+        garment["original_image"] = cover.get("original")
+    garment["removed_detection_ids"] = sorted(gone)
+
+
+def remove_garment_image(job_id: str, garment_id: str, detection_id: str, current: list[str]) -> dict[str, Any]:
+    """Record a deleted image; refuses to delete the last remaining one."""
+    workspace = db.get_workspace(job_id)
+    removed = dict(workspace.get("removed_images") or {})
+    already = set(removed.get(garment_id) or [])
+    remaining = [det_id for det_id in current if det_id not in already and det_id != detection_id]
+    if not remaining:
+        raise ValueError("Ett plagg måste ha minst en bild kvar.")
+    already.add(detection_id)
+    removed[garment_id] = sorted(already)
+    return db.set_workspace(job_id, {**workspace, "removed_images": removed})
 
 
 def mutate_pricing(job_id: str, pricing_id: str, action: str, actor: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:

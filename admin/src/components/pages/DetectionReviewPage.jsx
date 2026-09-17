@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { fileUrl, getJob, patchWorkspace } from '../../api'
+import { deleteGarmentImage, fileUrl, getJob, patchWorkspace } from '../../api'
 import { detectionImagePath, toneForMatch } from '../../lib/garment'
 import {
   CATEGORY_OPTIONS,
@@ -112,11 +112,31 @@ export default function DetectionReviewPage() {
         <div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {garment.detection_ids.map((id) => (
-              <div key={id} className="rounded-2xl bg-white p-2 shadow-soft">
+              <div key={id} className="group relative rounded-2xl bg-white p-2 shadow-soft">
                 <div className="aspect-square overflow-hidden rounded-xl bg-surface">
                   <img src={fileUrl(jobId, detectionImagePath(garment, id))} alt="" className="h-full w-full object-contain p-1" />
                 </div>
                 <p className="mt-1.5 truncate text-center font-mono text-[10px] text-slate-400">{id}</p>
+                {garment.detection_ids.length > 1 && (
+                  <button
+                    type="button"
+                    title="Ta bort bild"
+                    aria-label="Ta bort bild"
+                    onClick={async () => {
+                      if (!window.confirm('Ta bort den här bilden från plagget?')) return
+                      try {
+                        const data = await deleteGarmentImage(jobId, garment.id, id)
+                        setJob(data)
+                        toast.success('Bilden är borttagen.')
+                      } catch (err) {
+                        toast.error(err.message || 'Kunde inte ta bort bilden')
+                      }
+                    }}
+                    className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 opacity-0 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -176,3 +176,89 @@ export async function myFavorites() {
 export async function myListings() {
   return jsonRequest('/api/me/listings', {}, 'Kunde inte hämta dina annonser')
 }
+
+export async function counterOffer(offerId, { amount, message } = {}) {
+  return jsonRequest(`/api/offers/${offerId}/counter`, { method: 'POST', body: { amount, message } }, 'Kunde inte skicka motbudet')
+}
+
+export async function deleteGarmentImage(jobId, garmentId, detectionId) {
+  return jsonRequest(`/api/jobs/${jobId}/garments/${garmentId}/images/${detectionId}`, { method: 'DELETE' }, 'Kunde inte ta bort bilden')
+}
+
+// ---- Notifications + push ----
+
+export async function listNotifications() {
+  return jsonRequest('/api/notifications', {}, 'Kunde inte hämta notiser')
+}
+
+export async function markNotificationsRead(ids) {
+  return jsonRequest('/api/notifications/read', { method: 'POST', body: { ids } }, 'Kunde inte uppdatera notiser')
+}
+
+export async function getPushPublicKey() {
+  return jsonRequest('/api/push/public-key', { auth: false }, 'Push är inte tillgängligt')
+}
+
+export async function savePushSubscription(subscription) {
+  return jsonRequest('/api/push/subscribe', { method: 'POST', body: { subscription } }, 'Kunde inte aktivera push-notiser')
+}
+
+export async function removePushSubscription(endpoint) {
+  return jsonRequest('/api/push/subscribe', { method: 'DELETE', body: { endpoint } }, 'Kunde inte stänga av push-notiser')
+}
+
+// ---- Messages ----
+
+export async function sendListingMessage(listingId, { body, recipientId } = {}) {
+  return jsonRequest(
+    `/api/marketplace/listings/${listingId}/messages`,
+    { method: 'POST', body: { body, recipient_id: recipientId } },
+    'Kunde inte skicka meddelandet',
+  )
+}
+
+export async function listThreads() {
+  return jsonRequest('/api/messages', {}, 'Kunde inte hämta meddelanden')
+}
+
+export async function getConversation(listingId, otherId) {
+  return jsonRequest(`/api/messages/${listingId}/${otherId}`, {}, 'Kunde inte hämta konversationen')
+}
+
+// ---- Cart, checkout, orders ----
+
+export async function getCart() {
+  return jsonRequest('/api/cart', {}, 'Kunde inte hämta varukorgen')
+}
+
+export async function addToCart(listingId) {
+  return jsonRequest('/api/cart', { method: 'POST', body: { listing_id: listingId } }, 'Kunde inte lägga i varukorgen')
+}
+
+export async function removeFromCart(listingId) {
+  return jsonRequest(`/api/cart/${listingId}`, { method: 'DELETE' }, 'Kunde inte ta bort från varukorgen')
+}
+
+export async function startCheckout({ shipping, paymentMethod }) {
+  return jsonRequest('/api/checkout', { method: 'POST', body: { shipping, payment_method: paymentMethod } }, 'Kunde inte starta kassan')
+}
+
+export async function listOrders() {
+  return jsonRequest('/api/orders', {}, 'Kunde inte hämta ordrar')
+}
+
+export async function getOrder(orderId) {
+  return jsonRequest(`/api/orders/${orderId}`, {}, 'Ordern hittades inte')
+}
+
+export async function payOrderTest(orderId, card) {
+  return jsonRequest(`/api/orders/${orderId}/pay`, { method: 'POST', body: card }, 'Betalningen misslyckades')
+}
+
+export async function confirmOrder(orderId, sessionId) {
+  return jsonRequest(`/api/orders/${orderId}/confirm`, { method: 'POST', body: { session_id: sessionId } }, 'Kunde inte bekräfta betalningen')
+}
+
+export async function shipOrderItem(orderId, itemId) {
+  return jsonRequest(`/api/orders/${orderId}/items/${itemId}/ship`, { method: 'POST' }, 'Kunde inte markera som skickad')
+}

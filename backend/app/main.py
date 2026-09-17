@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from app import blobstore, db, jobs, workspace as workspace_mod
+from app import blobstore, commerce, db, jobs, notifications, workspace as workspace_mod
 from app import auth as auth_mod
 from app.auth import require_user
 
@@ -345,6 +345,13 @@ async def marketplace_listing(listing_id: str, user: dict | None = Depends(_opti
         raise HTTPException(status_code=404, detail="Annonsen hittades inte")
     item = _public_listing(listing, user)
     item["is_favorite"] = bool(user) and listing["id"] in set(db.list_favorite_ids(user["id"]))
+    item["reserved_for_me"] = False
+    item["in_cart"] = False
+    if user:
+        offer = db.accepted_offer_for(listing["id"], user["id"])
+        item["reserved_for_me"] = listing.get("status") == "reserved" and offer is not None
+        item["accepted_offer"] = offer
+        item["in_cart"] = any(entry["id"] == listing["id"] for entry in db.list_cart(user["id"]))
     return item
 
 
@@ -357,7 +364,30 @@ async def update_listing(listing_id: str, body: dict[str, Any], user: Annotated[
         raise HTTPException(status_code=403, detail="Du kan bara ändra dina egna annonser")
     if body.get("status") not in (None, "published", "sold", "unpublished"):
         raise HTTPException(status_code=400, detail="Ogiltig status")
-    return _public_listing(db.update_listing(listing_id, body) or listing, user)
+    patch = dict(body)
+    if "images" in patch:
+        # Seller/admin removing unwanted photos: only existing paths, never empty.
+        wanted = [path for path in (patch.get("images") or []) if path in (listing.get("images") or [])]
+        if not wanted:
+            raise HTTPException(status_code=400, detail="En annons måste ha minst en bild.")
+        patch["images"] = wanted
+        if listing.get("cover_image") not in wanted:
+            patch["cover_image"] = wanted[0]
+    return _public_listing(db.update_listing(listing_id, patch) or listing, user)
+
+
+@app.delete("/api/jobs/{job_id}/garments/{garment_id}/images/{detection_id}")
+async def delete_garment_image(job_id: str, garment_id: str, detection_id: str, user: Annotated[dict, Depends(require_user)]):
+    job = _load_job(job_id, user)
+    payload = _job_payload(job)
+    garment = next((g for g in (payload["result"] or {}).get("garments", []) if g.get("id") == garment_id), None)
+    if not garment:
+        raise HTTPException(status_code=404, detail="Plagget hittades inte")
+    try:
+        job.workspace = workspace_mod.remove_garment_image(job.id, garment_id, detection_id, garment.get("detection_ids") or [])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _job_payload(job)
 
 
 @app.post("/api/marketplace/listings/{listing_id}/favorite")
@@ -374,6 +404,10 @@ async def remove_favorite(listing_id: str, user: Annotated[dict, Depends(require
     return {"ok": True, "is_favorite": False}
 
 
+def _first_name(value: str | None, fallback: str) -> str:
+    return (value or fallback).split(" ")[0]
+
+
 @app.post("/api/marketplace/listings/{listing_id}/offers")
 async def create_offer(listing_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
     listing = db.fetch_listing(listing_id)
@@ -386,7 +420,17 @@ async def create_offer(listing_id: str, body: dict[str, Any] | None = None, user
     amount = int(body.get("amount") or (listing.get("price") if kind == "buy" else 0))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Ange ett giltigt belopp")
-    offer = db.create_offer(listing_id, user["id"], listing.get("seller_id"), kind, amount, (body.get("message") or "").strip() or None)
+    message = (body.get("message") or "").strip() or None
+    offer = db.create_offer(listing_id, user["id"], listing.get("seller_id"), kind, amount, message)
+    buyer = _first_name(user.get("full_name"), "En köpare")
+    notifications.notify(
+        listing.get("seller_id"),
+        "offer",
+        f"Nytt bud på ”{listing['title']}”",
+        f"{buyer} bjuder {amount} kr" + (f": ”{message}”" if message else "."),
+        link="/annonser?flik=bud",
+        data={"offer_id": offer["id"], "listing_id": listing_id},
+    )
     return offer
 
 
@@ -395,22 +439,330 @@ async def my_offers(user: Annotated[dict, Depends(require_user)]):
     return db.list_offers(user["id"])
 
 
+def _accept_offer(offer: dict[str, Any], amount: int) -> dict[str, Any]:
+    """Accepting (either side) reserves the listing for the buyer and drops it
+    in their cart at the agreed price, so the deal goes straight to checkout."""
+    updated = db.update_offer(offer["id"], status="accepted", amount=int(amount))
+    db.update_listing(offer["listing_id"], {"status": "reserved"})
+    db.add_cart_item(offer["buyer_id"], offer["listing_id"], int(amount), offer["id"])
+    return updated or offer
+
+
+@app.post("/api/offers/{offer_id}/counter")
+async def counter_offer(offer_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    offer = db.fetch_offer(offer_id)
+    if not offer:
+        raise HTTPException(status_code=404, detail="Budet hittades inte")
+    if offer.get("seller_id") != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Bara säljaren kan lägga motbud")
+    if offer.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Budet kan inte längre besvaras")
+    body = body or {}
+    amount = int(body.get("amount") or 0)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Ange ett giltigt motbud")
+    message = (body.get("message") or "").strip() or None
+    updated = db.update_offer(offer_id, status="countered", counter_amount=amount, counter_message=message)
+    notifications.notify(
+        offer.get("buyer_id"),
+        "counteroffer",
+        f"Motbud på ”{offer.get('listing_title')}”",
+        f"Säljaren föreslår {amount} kr i stället för {offer.get('amount')} kr." + (f" ”{message}”" if message else ""),
+        link="/annonser?flik=bud",
+        data={"offer_id": offer_id, "listing_id": offer.get("listing_id")},
+    )
+    return updated
+
+
 @app.post("/api/offers/{offer_id}/{action}")
 async def respond_offer(offer_id: str, action: str, user: Annotated[dict, Depends(require_user)]):
     offer = db.fetch_offer(offer_id)
     if not offer:
         raise HTTPException(status_code=404, detail="Budet hittades inte")
-    status_map = {"accept": "accepted", "decline": "declined", "cancel": "cancelled"}
-    if action not in status_map:
+    if action not in ("accept", "decline", "cancel"):
         raise HTTPException(status_code=400, detail="Ogiltig åtgärd")
+    is_buyer = offer.get("buyer_id") == user["id"]
+    is_seller = offer.get("seller_id") == user["id"] or user.get("role") == "admin"
+    status = offer.get("status")
+    title = offer.get("listing_title") or "annonsen"
+
     if action == "cancel":
-        if offer.get("buyer_id") != user["id"]:
+        if not is_buyer:
             raise HTTPException(status_code=403, detail="Bara köparen kan dra tillbaka budet")
-    elif offer.get("seller_id") != user["id"] and user.get("role") != "admin":
+        if status not in ("pending", "countered"):
+            raise HTTPException(status_code=400, detail="Budet kan inte dras tillbaka")
+        return db.update_offer_status(offer_id, "cancelled")
+
+    if status == "countered":
+        # The buyer answers the seller's counter-offer.
+        if not is_buyer:
+            raise HTTPException(status_code=403, detail="Bara köparen kan svara på motbudet")
+        if action == "accept":
+            updated = _accept_offer(offer, int(offer.get("counter_amount") or offer.get("amount") or 0))
+            notifications.notify(
+                offer.get("seller_id"),
+                "offer_accepted",
+                f"Motbudet på ”{title}” accepterades",
+                f"{_first_name(user.get('full_name'), 'Köparen')} accepterade {updated.get('amount')} kr och kan nu betala i kassan.",
+                link="/annonser?flik=bud",
+                data={"offer_id": offer_id},
+            )
+            return updated
+        updated = db.update_offer_status(offer_id, "declined")
+        notifications.notify(
+            offer.get("seller_id"),
+            "offer_declined",
+            f"Motbudet på ”{title}” avböjdes",
+            f"{_first_name(user.get('full_name'), 'Köparen')} tackade nej till {offer.get('counter_amount')} kr.",
+            link="/annonser?flik=bud",
+            data={"offer_id": offer_id},
+        )
+        return updated
+
+    if status != "pending":
+        raise HTTPException(status_code=400, detail="Budet kan inte längre besvaras")
+    if not is_seller:
         raise HTTPException(status_code=403, detail="Bara säljaren kan svara på budet")
-    updated = db.update_offer_status(offer_id, status_map[action])
     if action == "accept":
-        db.update_listing(offer["listing_id"], {"status": "sold"})
+        updated = _accept_offer(offer, int(offer.get("amount") or 0))
+        notifications.notify(
+            offer.get("buyer_id"),
+            "offer_accepted",
+            f"Ditt bud på ”{title}” accepterades!",
+            f"Säljaren accepterade {updated.get('amount')} kr. Plagget är reserverat åt dig – gå till kassan för att betala.",
+            link="/kassa",
+            data={"offer_id": offer_id, "listing_id": offer.get("listing_id")},
+        )
+        return updated
+    updated = db.update_offer_status(offer_id, "declined")
+    notifications.notify(
+        offer.get("buyer_id"),
+        "offer_declined",
+        f"Ditt bud på ”{title}” avböjdes",
+        f"Säljaren tackade nej till {offer.get('amount')} kr.",
+        link=f"/marknad/{offer.get('listing_id')}",
+        data={"offer_id": offer_id, "listing_id": offer.get("listing_id")},
+    )
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Notifications + Web Push
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/notifications")
+async def list_notifications(limit: int = 50, user: dict = Depends(require_user)):
+    return {
+        "items": db.list_notifications(user["id"], limit=max(1, min(int(limit), 200))),
+        "unread": db.unread_notification_count(user["id"]),
+        "unread_messages": db.unread_message_count(user["id"]),
+        "cart_count": db.cart_count(user["id"]),
+    }
+
+
+@app.post("/api/notifications/read")
+async def read_notifications(body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    ids = [str(i) for i in ((body or {}).get("ids") or [])] or None
+    db.mark_notifications_read(user["id"], ids)
+    return {"unread": db.unread_notification_count(user["id"])}
+
+
+@app.get("/api/push/public-key")
+async def push_public_key():
+    key = notifications.public_key()
+    return {"public_key": key, "enabled": bool(key)}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    sub = body.get("subscription") or body
+    keys = sub.get("keys") or {}
+    if not sub.get("endpoint") or not keys.get("p256dh") or not keys.get("auth"):
+        raise HTTPException(status_code=400, detail="Ogiltig push-prenumeration")
+    db.upsert_push_subscription(user["id"], sub["endpoint"], keys["p256dh"], keys["auth"])
+    return {"ok": True}
+
+
+@app.delete("/api/push/subscribe")
+async def push_unsubscribe(body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    if body.get("endpoint"):
+        db.delete_push_subscription(body["endpoint"], user["id"])
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Messages about a listing
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/marketplace/listings/{listing_id}/messages")
+async def send_message(listing_id: str, body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    listing = db.fetch_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    text = (body.get("body") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Skriv ett meddelande")
+    if listing.get("seller_id") == user["id"]:
+        recipient_id = str(body.get("recipient_id") or "")
+        if not recipient_id:
+            raise HTTPException(status_code=400, detail="Ange vem du svarar")
+    else:
+        recipient_id = listing.get("seller_id")
+    if not recipient_id or recipient_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Ogiltig mottagare")
+    message = db.insert_message(listing_id, user["id"], recipient_id, text[:2000])
+    sender = _first_name(user.get("full_name"), "Någon")
+    notifications.notify(
+        recipient_id,
+        "message",
+        f"{sender} skrev om ”{listing['title']}”",
+        text[:140],
+        link=f"/meddelanden?annons={listing_id}&med={user['id']}",
+        data={"listing_id": listing_id, "from": user["id"]},
+    )
+    return message
+
+
+@app.get("/api/messages")
+async def my_threads(user: Annotated[dict, Depends(require_user)]):
+    return {"threads": db.list_threads(user["id"]), "unread": db.unread_message_count(user["id"])}
+
+
+@app.get("/api/messages/{listing_id}/{other_id}")
+async def conversation(listing_id: str, other_id: str, user: Annotated[dict, Depends(require_user)]):
+    listing = db.fetch_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    db.mark_messages_read(user["id"], listing_id, other_id)
+    other = db.fetch_profile(other_id)
+    return {
+        "listing": _public_listing(listing, user),
+        "other": {"id": other_id, "name": (other or {}).get("full_name") or "Användare"},
+        "messages": db.list_conversation(user["id"], listing_id, other_id),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Cart, checkout, orders
+# ---------------------------------------------------------------------------
+
+
+def _cart_payload(user_id: str) -> dict[str, Any]:
+    items = db.list_cart(user_id)
+    payload_items = []
+    for item in items:
+        available = commerce.listing_available_for(user_id, item)
+        payload_items.append({**_public_listing(item), "available": available})
+    total = sum(int(i["cart_price"]) for i in payload_items if i["available"])
+    return {"items": payload_items, "total": total, "count": len(payload_items), "stripe_enabled": commerce.stripe_enabled()}
+
+
+@app.get("/api/cart")
+async def get_cart(user: Annotated[dict, Depends(require_user)]):
+    return _cart_payload(user["id"])
+
+
+@app.post("/api/cart")
+async def add_to_cart(body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    listing_id = str(body.get("listing_id") or "")
+    listing = db.fetch_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Annonsen hittades inte")
+    if listing.get("seller_id") == user["id"]:
+        raise HTTPException(status_code=400, detail="Du kan inte köpa din egen annons")
+    if not commerce.listing_available_for(user["id"], listing):
+        raise HTTPException(status_code=400, detail="Plagget är inte tillgängligt just nu")
+    price, offer_id = commerce.cart_price_for(user["id"], listing)
+    db.add_cart_item(user["id"], listing_id, price, offer_id)
+    return _cart_payload(user["id"])
+
+
+@app.delete("/api/cart/{listing_id}")
+async def remove_from_cart(listing_id: str, user: Annotated[dict, Depends(require_user)]):
+    db.remove_cart_item(user["id"], listing_id)
+    return _cart_payload(user["id"])
+
+
+@app.post("/api/checkout")
+async def checkout(body: dict[str, Any], user: Annotated[dict, Depends(require_user)]):
+    try:
+        return commerce.start_checkout(user, body.get("shipping") or {}, body.get("payment_method") or "test")
+    except commerce.CheckoutError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 -- e.g. Stripe API failure
+        raise HTTPException(status_code=502, detail=f"Betalningen kunde inte startas: {exc}") from exc
+
+
+def _load_order(order_id: str, user: dict) -> dict[str, Any]:
+    order = db.fetch_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Ordern hittades inte")
+    is_buyer = order.get("buyer_id") == user["id"]
+    is_seller = any(item.get("seller_id") == user["id"] for item in order["items"])
+    if not (is_buyer or is_seller or user.get("role") == "admin"):
+        raise HTTPException(status_code=404, detail="Ordern hittades inte")
+    if is_seller and not is_buyer and user.get("role") != "admin":
+        order["items"] = [item for item in order["items"] if item.get("seller_id") == user["id"]]
+    return order
+
+
+@app.get("/api/orders")
+async def list_orders(user: Annotated[dict, Depends(require_user)]):
+    return db.list_orders(user["id"])
+
+
+@app.get("/api/orders/{order_id}")
+async def get_order(order_id: str, user: Annotated[dict, Depends(require_user)]):
+    return _load_order(order_id, user)
+
+
+@app.post("/api/orders/{order_id}/pay")
+async def pay_order_test(order_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    """Built-in test payment (used when Stripe is not configured)."""
+    order = _load_order(order_id, user)
+    if order.get("buyer_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Bara köparen kan betala ordern")
+    if order.get("payment_provider") == "stripe" and commerce.stripe_enabled():
+        raise HTTPException(status_code=400, detail="Den här ordern betalas via Stripe")
+    card = str((body or {}).get("card_number") or "").replace(" ", "")
+    if card and (len(card) < 12 or not card.isdigit()):
+        raise HTTPException(status_code=400, detail="Ogiltigt kortnummer")
+    try:
+        return commerce.complete_order(order_id, payment_ref=f"test-{order_id[:8]}")
+    except commerce.CheckoutError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/orders/{order_id}/confirm")
+async def confirm_order(order_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    order = _load_order(order_id, user)
+    if order.get("status") == "paid":
+        return order
+    try:
+        return commerce.confirm_stripe(order, (body or {}).get("session_id"))
+    except commerce.CheckoutError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Kunde inte bekräfta betalningen: {exc}") from exc
+
+
+@app.post("/api/orders/{order_id}/items/{item_id}/ship")
+async def ship_order_item(order_id: str, item_id: str, user: Annotated[dict, Depends(require_user)]):
+    order = _load_order(order_id, user)
+    item = next((i for i in order["items"] if i["id"] == item_id), None)
+    if not item or (item.get("seller_id") != user["id"] and user.get("role") != "admin"):
+        raise HTTPException(status_code=403, detail="Bara säljaren kan markera som skickad")
+    updated = db.update_order_item(item_id, "shipped")
+    notifications.notify(
+        order.get("buyer_id"),
+        "order_shipped",
+        f"”{item['title']}” är skickad",
+        "Säljaren har skickat ditt plagg.",
+        link=f"/kassa/klart/{order_id}",
+        data={"order_id": order_id},
+    )
     return updated
 
 

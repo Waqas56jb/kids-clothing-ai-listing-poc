@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from itertools import combinations
 
 import numpy as np
@@ -26,6 +27,43 @@ WEIGHTS = {
 # even when every other signal says "merge".
 IDENTICAL_LOOK_ALIKE_EMBEDDING_SIM = 0.95
 
+# Swedish + English color words -> canonical family. Two garments whose
+# *primary* colors confidently disagree (white vs pink) are never the same
+# physical item, no matter how similar two H&M bodysuits look to CLIP.
+_COLOR_FAMILIES = {
+    "white": ["vit", "vita", "white", "cream", "kräm", "krämvit", "offwhite", "off-white", "ecru", "naturvit"],
+    "black": ["svart", "svarta", "black"],
+    "grey": ["grå", "gra", "grey", "gray", "gråmelerad", "ljusgrå", "mörkgrå", "antracit"],
+    "blue": ["blå", "bla", "blue", "ljusblå", "mörkblå", "marinblå", "marin", "navy", "denim", "jeansblå", "turkos", "turquoise", "petrol"],
+    "red": ["röd", "rod", "red", "vinröd", "burgundy", "bordeaux", "korall", "coral"],
+    "pink": ["rosa", "pink", "ljusrosa", "mörkrosa", "cerise", "fuchsia", "magenta"],
+    "purple": ["lila", "purple", "violett", "lavendel", "lavender", "plommon"],
+    "green": ["grön", "gron", "green", "ljusgrön", "mörkgrön", "mint", "oliv", "olive", "khaki", "lime"],
+    "yellow": ["gul", "gula", "yellow", "senap", "mustard", "citron"],
+    "orange": ["orange", "brandgul", "aprikos", "apricot", "persika", "peach"],
+    "brown": ["brun", "bruna", "brown", "beige", "sand", "camel", "kamel", "taupe", "rost", "rust", "terrakotta"],
+}
+_COLOR_LOOKUP = {word: family for family, words in _COLOR_FAMILIES.items() for word in words}
+_MULTI_WORDS = {"flerfärgad", "flerfärgat", "multicolor", "multicolour", "multi", "mönstrad", "mönstrat", "randig", "randigt", "rutig", "blommig", "printed"}
+
+
+def primary_color(text: str | None) -> str | None:
+    """Canonical color family of the first color word in a free-text color,
+    or None when unknown / multicolored (which never vetoes)."""
+    if not text:
+        return None
+    words = re.findall(r"[a-zåäöéü\-]+", text.lower())
+    for word in words:
+        if word in _MULTI_WORDS:
+            return None
+        if word in _COLOR_LOOKUP:
+            return _COLOR_LOOKUP[word]
+        # compounds like "ljusblå", "mörkgrön"
+        for base, family in _COLOR_LOOKUP.items():
+            if len(base) >= 3 and word.endswith(base):
+                return family
+    return None
+
 
 def _normalize(value: str | None) -> str | None:
     return value.strip().lower() if value else None
@@ -39,6 +77,13 @@ def _field_score(a: str | None, b: str | None) -> float:
     return 1.0 if norm_a == norm_b else 0.0
 
 
+def _color_score(a: str | None, b: str | None) -> float:
+    family_a, family_b = primary_color(a), primary_color(b)
+    if family_a and family_b:
+        return 1.0 if family_a == family_b else 0.0
+    return _field_score(a, b)
+
+
 def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
     set_a = {t.strip().lower() for t in texts_a if t.strip()}
     set_b = {t.strip().lower() for t in texts_b if t.strip()}
@@ -50,11 +95,17 @@ def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
 
 def is_vetoed(attr_a: Attributes, attr_b: Attributes) -> bool:
     """Two detections can never be the same physical garment if their
-    extracted categories confidently disagree (a jacket is never a trouser)."""
+    extracted categories confidently disagree (a jacket is never a trouser)
+    or their primary colors confidently disagree (a white bodysuit is never
+    a pink one)."""
     cat_a, cat_b = _normalize(attr_a.category), _normalize(attr_b.category)
-    if cat_a in (None, "unknown") or cat_b in (None, "unknown"):
-        return False
-    return cat_a != cat_b
+    if cat_a not in (None, "unknown") and cat_b not in (None, "unknown") and cat_a != cat_b:
+        return True
+    color_a, color_b = primary_color(attr_a.color), primary_color(attr_b.color)
+    if color_a and color_b and color_a != color_b:
+        if attr_a.confidence.color >= 0.5 and attr_b.confidence.color >= 0.5:
+            return True
+    return False
 
 
 def fields_all_match_and_known(attr_a: Attributes, attr_b: Attributes) -> bool:
@@ -81,27 +132,11 @@ def pairwise_score(
     embedding_sim = cosine_similarity(emb_a, emb_b)
     return (
         WEIGHTS["embedding"] * embedding_sim
-        + WEIGHTS["color"] * _field_score(attr_a.color, attr_b.color)
+        + WEIGHTS["color"] * _color_score(attr_a.color, attr_b.color)
         + WEIGHTS["brand"] * _field_score(attr_a.brand, attr_b.brand)
         + WEIGHTS["size"] * _field_score(attr_a.size, attr_b.size)
         + WEIGHTS["ocr"] * _ocr_score(ocr_a, ocr_b)
     )
-
-
-class _UnionFind:
-    def __init__(self, items: list[str]):
-        self.parent = {item: item for item in items}
-
-    def find(self, x: str) -> str:
-        while self.parent[x] != x:
-            self.parent[x] = self.parent[self.parent[x]]
-            x = self.parent[x]
-        return x
-
-    def union(self, a: str, b: str) -> None:
-        root_a, root_b = self.find(a), self.find(b)
-        if root_a != root_b:
-            self.parent[root_a] = root_b
 
 
 def _pick_best_field(members: list[Attributes], field: str) -> tuple[str | None, float]:
@@ -208,31 +243,27 @@ def build_garments(
 ) -> list[Garment]:
     """Cluster detections into physical garments and assemble final records.
 
-    A pair of detections is only ever unioned if its score clears the review
-    threshold; anything below that stays as two separate garments. Clusters
-    that form below the merge threshold, or that look like they might be two
-    separate-but-identical items, come out flagged for seller review rather
-    than silently merged or silently split (Section 20/50 of the brief).
+    Clustering is complete-linkage: a detection joins a cluster only if it
+    matches *every* member above the review threshold (and no pair is vetoed
+    by category/color). Single-link chaining (A~B, B~C therefore A=C) is
+    exactly how three different bodysuits used to collapse into one garment.
+    Clusters that form below the merge threshold, or that look like they
+    might be two separate-but-identical items, come out flagged for seller
+    review rather than silently merged or silently split.
     """
     detections_by_id = {d.id: d for d in detections}
     ids = [d.id for d in detections]
-    union_find = _UnionFind(ids)
     pair_scores: dict[frozenset[str], float] = {}
 
     for id_a, id_b in combinations(ids, 2):
         # A single photo shows each physical item once. Two detections from
         # the *same* image are two different pieces of clothing laid near
         # each other, never "the same garment seen twice" -- that scenario
-        # only exists across different photos. Without this veto, visually
-        # similar items (e.g. two long-sleeve bodysuits in different colors)
-        # can still score above threshold on embedding similarity alone and
-        # get wrongly merged, which is far worse than a same-image false
-        # merge ever needs to be.
+        # only exists across different photos.
         if detections_by_id[id_a].image_id == detections_by_id[id_b].image_id:
             pair_scores[frozenset((id_a, id_b))] = 0.0
             continue
-
-        score = pairwise_score(
+        pair_scores[frozenset((id_a, id_b))] = pairwise_score(
             attributes[id_a],
             attributes[id_b],
             embeddings[id_a],
@@ -240,15 +271,39 @@ def build_garments(
             ocr_texts.get(id_a, []),
             ocr_texts.get(id_b, []),
         )
-        pair_scores[frozenset((id_a, id_b))] = score
-        if score >= SETTINGS.match_review_threshold:
-            union_find.union(id_a, id_b)
 
-    clusters: dict[str, list[str]] = {}
+    threshold = SETTINGS.match_review_threshold
+    cluster_of: dict[str, set[str]] = {det_id: {det_id} for det_id in ids}
+    candidate_pairs = sorted(
+        ((score, pair) for pair, score in pair_scores.items() if score >= threshold),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    for _score, pair in candidate_pairs:
+        id_a, id_b = tuple(pair)
+        cluster_a, cluster_b = cluster_of[id_a], cluster_of[id_b]
+        if cluster_a is cluster_b:
+            continue
+        # Also refuse to put two detections from the same photo in one cluster.
+        images_a = {detections_by_id[x].image_id for x in cluster_a}
+        images_b = {detections_by_id[x].image_id for x in cluster_b}
+        if images_a & images_b:
+            continue
+        if all(pair_scores[frozenset((x, y))] >= threshold for x in cluster_a for y in cluster_b):
+            merged = cluster_a | cluster_b
+            for member in merged:
+                cluster_of[member] = merged
+
+    clusters: list[list[str]] = []
+    seen: set[int] = set()
     for det_id in ids:
-        clusters.setdefault(union_find.find(det_id), []).append(det_id)
+        cluster = cluster_of[det_id]
+        if id(cluster) in seen:
+            continue
+        seen.add(id(cluster))
+        clusters.append(sorted(cluster, key=ids.index))
 
     return [
         _assemble_garment(index, member_ids, detections_by_id, attributes, embeddings, pair_scores)
-        for index, member_ids in enumerate(clusters.values(), start=1)
+        for index, member_ids in enumerate(clusters, start=1)
     ]

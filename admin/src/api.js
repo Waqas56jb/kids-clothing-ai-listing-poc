@@ -56,6 +56,14 @@ export function fileUrl(jobId, relativePath) {
   return `${url}${sep}token=${encodeURIComponent(token)}`
 }
 
+export async function deleteGarmentImage(jobId, garmentId, detectionId) {
+  const res = await fetch(`${API_BASE}/api/jobs/${jobId}/garments/${garmentId}/images/${detectionId}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+  })
+  return parse(res, 'Kunde inte ta bort bilden')
+}
+
 export async function patchWorkspace(jobId, patch) {
   const res = await fetch(`${API_BASE}/api/jobs/${jobId}/workspace`, {
     method: 'PATCH',
