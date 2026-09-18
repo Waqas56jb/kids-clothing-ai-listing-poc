@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Baby,
@@ -64,23 +64,38 @@ function useCollapsed(key) {
   return [collapsed, setCollapsed]
 }
 
+// NavLink only compares the pathname, so the three "/annonser?flik=…" links
+// would all light up together. Compare the tab query too.
+function isLinkActive(to, end, location) {
+  const [path, query = ''] = to.split('?')
+  if (end) return location.pathname === path
+  const onPath = location.pathname === path || location.pathname.startsWith(`${path}/`)
+  if (!onPath) return false
+  const wanted = new URLSearchParams(query).get('flik')
+  if (path === '/annonser') {
+    const current = new URLSearchParams(location.search).get('flik') || 'annonser'
+    return (wanted || 'annonser') === current
+  }
+  return true
+}
+
 function NavItem({ to, label, icon: Icon, end, collapsed, onClick, count }) {
+  const location = useLocation()
+  const active = isLinkActive(to, end, location)
   return (
-    <NavLink
+    <Link
       to={to}
-      end={end}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={({ isActive }) =>
-        `relative flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-          collapsed ? 'justify-center px-0' : ''
-        } ${isActive ? 'bg-white text-brand-800 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white'}`
-      }
+      aria-current={active ? 'page' : undefined}
+      className={`relative flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+        collapsed ? 'justify-center px-0' : ''
+      } ${active ? 'bg-white text-brand-800 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white'}`}
     >
       <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
       {!collapsed && <span className="flex-1 truncate">{label}</span>}
       <CountBadge value={count} className={collapsed ? 'absolute -right-0.5 -top-0.5' : ''} />
-    </NavLink>
+    </Link>
   )
 }
 

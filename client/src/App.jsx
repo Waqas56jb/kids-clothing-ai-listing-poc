@@ -31,6 +31,14 @@ function HomeGate() {
   return <LandingPage />
 }
 
+// Marketplace pages stay public, but a signed-in user keeps the seller panel
+// (left sidebar) around them so navigation never feels stuck.
+function MarketLayout() {
+  const { loading, session } = useAuth()
+  if (loading) return <AuthSplash />
+  return session ? <SellerLayout /> : <PublicLayout />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -38,21 +46,9 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
 
       {/* Public marketplace: browse, search, filter and open listings without an account. */}
-      <Route element={<PublicLayout />}>
+      <Route element={<MarketLayout />}>
         <Route path="/marknad" element={<MarketplacePage />} />
         <Route path="/marknad/:listingId" element={<ListingDetailPage />} />
-      </Route>
-
-      {/* Shopping: needs an account, keeps the marketplace look. */}
-      <Route element={<ProtectedRoute />}>
-        <Route element={<PublicLayout />}>
-          <Route path="/varukorg" element={<CartPage />} />
-          <Route path="/kassa" element={<CheckoutPage />} />
-          <Route path="/kassa/betala/:orderId" element={<PaymentPage />} />
-          <Route path="/kassa/klart/:orderId" element={<OrderConfirmationPage />} />
-          <Route path="/notiser" element={<NotificationsPage />} />
-          <Route path="/meddelanden" element={<MessagesPage />} />
-        </Route>
       </Route>
 
       <Route element={<ProtectedRoute />}>
@@ -66,6 +62,13 @@ export default function App() {
           <Route path="/groups/:jobId" element={<GroupsPage />} />
           <Route path="/listings/:jobId" element={<ListingPreviewPage />} />
           <Route path="/annonser" element={<MyListingsPage />} />
+          {/* Shopping, notifications and messages live inside the seller panel too. */}
+          <Route path="/varukorg" element={<CartPage />} />
+          <Route path="/kassa" element={<CheckoutPage />} />
+          <Route path="/kassa/betala/:orderId" element={<PaymentPage />} />
+          <Route path="/kassa/klart/:orderId" element={<OrderConfirmationPage />} />
+          <Route path="/notiser" element={<NotificationsPage />} />
+          <Route path="/meddelanden" element={<MessagesPage />} />
         </Route>
       </Route>
 
