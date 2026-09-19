@@ -19,12 +19,14 @@ import numpy as np
 from ai_engine.pipeline import (
     _Prepared,
     _attach_images,
+    _downgrade_if_ai_flagged_incomplete,
     _drop_duplicate_detections,
     _mask_overlap_fraction,
     _overlapping_ids,
 )
 from ai_engine.schemas import (
     AttributeConfidence,
+    Attributes,
     BBox,
     Detection,
     DetectionImages,
@@ -237,3 +239,62 @@ def test_garment_not_flagged_when_fallback_is_unrelated_to_overlap():
     }
     garment = _attach_images(_garment("g1", ["d0"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
     assert garment.match_status == MatchStatus.HIGH_CONFIDENCE
+
+
+# ---------------------------------------------------------------------------
+# Vision-judged cutout completeness (real messy-pile photos showed masks
+# that pass every geometric check -- decent coverage, no enclosed holes,
+# wide extent -- yet still look torn or missing a visible chunk to a human;
+# no shape/color heuristic tried caught this without also flagging plenty
+# of genuinely fine cutouts, so the model that already looks at both images
+# is asked to judge its own cutout directly).
+# ---------------------------------------------------------------------------
+
+def test_ai_flagged_cutout_is_downgraded_to_the_original_photo():
+    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
+    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=False)
+    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
+    assert prepared.images.display_kind == "original"
+    assert prepared.images.display == prepared.images.crop
+    assert prepared.images.cutout_rejected_reason == "ai_flagged_incomplete"
+
+
+def test_ai_approved_cutout_is_left_alone():
+    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
+    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=True)
+    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
+    assert prepared.images.display_kind == "cutout"
+    assert prepared.images.cutout_rejected_reason is None
+
+
+def test_null_judgment_never_downgrades_a_cutout():
+    # No cutout was shown to the model (or the call failed) -- absence of a
+    # verdict must never be treated as a negative one.
+    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
+    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=None)
+    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
+    assert prepared.images.display_kind == "cutout"
+
+
+def test_ai_flag_never_touches_a_detection_that_was_already_showing_the_original():
+    prepared = _prepared("d0", "img1", display_kind="original", rejected_reason="mask_has_holes", quality=_quality())
+    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=False)
+    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
+    assert prepared.images.cutout_rejected_reason == "mask_has_holes"  # untouched, not overwritten
+
+
+def test_ai_flagged_incomplete_forces_needs_review_like_overlap_does():
+    prepared_by_id = {
+        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="ai_flagged_incomplete", quality=_quality()),
+    }
+    garment = _attach_images(_garment("g1", ["d0"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
+    assert garment.match_status == MatchStatus.NEEDS_REVIEW
+
+
+def test_cover_selection_prefers_an_untouched_cutout_over_an_ai_flagged_one():
+    prepared_by_id = {
+        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="ai_flagged_incomplete", quality=_quality(extent_x=0.95, extent_y=0.95)),
+        "d1": _prepared("d1", "img2", display_kind="cutout", rejected_reason=None, quality=_quality(extent_x=0.6, extent_y=0.6)),
+    }
+    garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
+    assert garment.display_image == "cutouts/d1.png"

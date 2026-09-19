@@ -58,6 +58,15 @@ _MASK_OVERLAP_FRACTION = 0.06
 # trusted to make this call, only the geometry could.
 _DUPLICATE_OVERLAP_FRACTION = 0.9
 
+# Reasons a detection's own cutout got vetoed that mean nothing in this
+# garment's photos can be trusted at face value -- either from another
+# garment sharing the frame, or from the vision model's own judgment that
+# its cutout doesn't hold up next to the seller's original photo. Both
+# should rank behind a trustworthy cutout and, if nothing better exists,
+# both should send the garment to the seller for a look before it's
+# published.
+_REVIEW_WORTHY_REASONS = frozenset({"overlaps_other_garment", "ai_flagged_incomplete"})
+
 
 @dataclass
 class _Prepared:
@@ -204,6 +213,27 @@ def _prepare_detection(
     return _Prepared(det, images, texts, embedding, quality), original_crop, cutout
 
 
+# A geometric mask-quality gate (coverage/holes/extent) catches an obviously
+# failed segmentation, but real messy-pile photos showed a further failure
+# mode it can't see: a mask that is geometrically solid (decent coverage, no
+# enclosed holes, wide extent) yet still looks torn, patchy, or missing a
+# visible chunk to a human -- e.g. a genuine gap in a twisted/folded garment
+# reading as part of its silhouette. No shape/color heuristic tried caught
+# this reliably without also flagging plenty of genuinely fine cutouts, so
+# the vision model -- which already looks at both images for every
+# detection anyway -- is asked to judge directly whether its own cutout is
+# presentable, and this downgrades it after the fact if not.
+def _downgrade_if_ai_flagged_incomplete(prepared: _Prepared, attrs: Attributes) -> None:
+    if attrs.cutout_looks_complete is not False:
+        return
+    images = prepared.images
+    if images.display_kind != "cutout":
+        return
+    images.display_kind = "original"
+    images.display = images.crop
+    images.cutout_rejected_reason = "ai_flagged_incomplete"
+
+
 def _single_detection_garment(index: int, prepared: _Prepared, attrs: Attributes) -> Garment:
     return Garment(
         id=f"garment_{index:03d}",
@@ -233,9 +263,9 @@ def _quality_rank(prepared: _Prepared) -> tuple[float, float, float]:
     crop that shows the garment most fully instead of just the first one
     the seller happened to upload."""
     q = prepared.quality
-    not_overlapping = 0.0 if prepared.images.cutout_rejected_reason == "overlaps_other_garment" else 1.0
+    trustworthy = 0.0 if prepared.images.cutout_rejected_reason in _REVIEW_WORTHY_REASONS else 1.0
     extent_score = q.coverage * q.extent_x * q.extent_y
-    return (not_overlapping, extent_score, prepared.detection.detector_confidence)
+    return (trustworthy, extent_score, prepared.detection.detector_confidence)
 
 
 def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Garment:
@@ -261,12 +291,13 @@ def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Ga
     garment.original_image = cover.original
 
     # No photo of this garment gave us a trustworthy, unoccluded view of it
-    # -- the category/attributes were read off a partially hidden item,
-    # which is exactly the situation that produces a confidently wrong
-    # guess (a bunched sleeve or collar read as a hat). Flag it for the
-    # seller to double-check rather than presenting it as settled, even
-    # though the *matching* itself may have been perfectly confident.
-    if cover.cutout_rejected_reason == "overlaps_other_garment":
+    # -- the category/attributes were read off a partially hidden or
+    # visibly incomplete item, which is exactly the situation that produces
+    # a confidently wrong guess (a bunched sleeve or collar read as a hat).
+    # Flag it for the seller to double-check rather than presenting it as
+    # settled, even though the *matching* itself may have been perfectly
+    # confident.
+    if cover.cutout_rejected_reason in _REVIEW_WORTHY_REASONS:
         garment.match_status = MatchStatus.NEEDS_REVIEW
 
     return garment
@@ -395,6 +426,9 @@ def run_pipeline(
             attrs = Attributes(detection_id=det_id, category="unknown", unavailable=True)
         with state_lock:
             attributes[det_id] = attrs
+            prepared = prepared_by_id.get(det_id)
+            if prepared is not None:
+                _downgrade_if_ai_flagged_incomplete(prepared, attrs)
             done_count += 1
             current = raw_total + done_count
         report("segmenting_extracting", current, raw_total * 2)

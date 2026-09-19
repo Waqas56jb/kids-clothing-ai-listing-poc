@@ -58,6 +58,22 @@ _ATTRIBUTE_SCHEMA = {
             "type": ["string", "null"],
             "enum": ["boys", "girls", "unisex", None],
         },
+        "cutout_looks_complete": {
+            "type": ["boolean", "null"],
+            "description": (
+                "Only meaningful when Image B was provided; null if it was not. true "
+                "only if Image B genuinely shows the WHOLE garment cleanly -- the same "
+                "overall shape and extent as Image A, with no chunk of the garment "
+                "missing or cut off, no ragged/torn-looking edge that Image A does not "
+                "actually show as damaged, and no stray background or foreign object "
+                "bled into it. false if any of that is wrong: part of the garment "
+                "visible in Image A is missing from Image B, Image B's silhouette looks "
+                "torn/distorted/incomplete compared to the real garment in Image A, or "
+                "Image B includes something that isn't this garment. When in doubt, "
+                "answer false -- a real photo of the garment is always better than a "
+                "questionable cutout."
+            ),
+        },
         "confidence": {
             "type": "object",
             "properties": {
@@ -72,7 +88,10 @@ _ATTRIBUTE_SCHEMA = {
             "additionalProperties": False,
         },
     },
-    "required": ["category", "brand", "size", "color", "condition", "gender", "defects", "confidence"],
+    "required": [
+        "category", "brand", "size", "color", "condition", "gender", "defects",
+        "cutout_looks_complete", "confidence",
+    ],
     "additionalProperties": False,
 }
 
@@ -137,7 +156,19 @@ _SYSTEM_PROMPT = (
     "between two folds of the same intact fabric is not damage.\n"
     "- If the crop doesn't actually show a piece of clothing (e.g. it's just a "
     "hang tag, label, or stray background), set `category` to 'not_a_garment' "
-    "with confidence 0 for every field rather than guessing a garment type."
+    "with confidence 0 for every field rather than guessing a garment type.\n"
+    "- `cutout_looks_complete` is a separate judgment from `defects`, and the two "
+    "often disagree on purpose: a cutout artifact (a ragged edge from imperfect "
+    "background removal, not real fabric damage) correctly stays out of `defects`, "
+    "but it still means Image B is not a good, presentable photo of the garment -- "
+    "set `cutout_looks_complete` to false in exactly that case. Compare the two "
+    "images directly: if Image B is missing an arm, leg, collar, hem, or other "
+    "chunk that Image A clearly shows, if its outline looks torn, patchy, or "
+    "eaten-into rather than following the garment's real edge, or if a visible "
+    "patch of background, another object, or a different garment shows up inside "
+    "Image B's silhouette, that is false, regardless of how confident you are "
+    "about the other fields. true is reserved for a cutout you would be "
+    "comfortable showing a buyer as the product photo exactly as it is."
 )
 
 
@@ -246,6 +277,11 @@ def extract_attributes(
         if condition and condition.strip().lower() == "damaged":
             condition = None
 
+    # Only meaningful when we actually showed the model a cutout; ignore
+    # whatever it says otherwise rather than trust a judgment about an
+    # image it never saw.
+    cutout_looks_complete = payload.get("cutout_looks_complete") if cutout_crop is not None else None
+
     return Attributes(
         detection_id=detection_id,
         category=category,
@@ -256,4 +292,5 @@ def extract_attributes(
         gender=gender,
         defects=defects,
         confidence=confidence,
+        cutout_looks_complete=cutout_looks_complete,
     )

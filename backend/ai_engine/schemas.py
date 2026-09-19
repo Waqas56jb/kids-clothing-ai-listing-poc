@@ -98,6 +98,11 @@ class Attributes(BaseModel):
     defects: Optional[str] = None
     confidence: AttributeConfidence = Field(default_factory=AttributeConfidence)
     unavailable: bool = False
+    # None when no cutout was offered to the model at all (nothing to judge);
+    # otherwise the model's own verdict on whether the cutout genuinely shows
+    # the complete garment cleanly. False routes the pipeline back to the
+    # seller's original photo -- see pipeline.py's on_vision_done.
+    cutout_looks_complete: Optional[bool] = None
 
 
 class MatchStatus(str, Enum):

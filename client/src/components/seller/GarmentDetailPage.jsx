@@ -39,6 +39,7 @@ const REJECT_REASON_SV = {
   mask_has_holes: 'frilägningen fick hål i plagget',
   mask_cut_off_garment: 'frilägningen skar av delar av plagget',
   empty_mask: 'AI:n kunde inte frilägga plagget',
+  ai_flagged_incomplete: 'AI:n bedömde att frilägningen inte visade hela plagget rent',
 }
 
 const inputClass =
