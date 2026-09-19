@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, Check, Link2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { fileUrl, getJob, patchWorkspace } from '../../api'
 import { detectionImagePath, toneForMatch } from '../../lib/garment'
-import { categoryLabel, plural } from '../../lib/sv'
+import { categoryLabel, matchStatusLabel, plural } from '../../lib/sv'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
@@ -17,7 +17,7 @@ function MatchCard({ garment, jobId, decision, onDecide }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h3 className="font-display text-base font-bold text-slate-800">{categoryLabel(garment.category)}</h3>
-          <Badge tone={toneForMatch(garment.match_status)}>{Math.round(garment.match_confidence * 100)} % matchning</Badge>
+          <Badge tone={toneForMatch(garment.match_status)}>{matchStatusLabel(garment.match_status)}</Badge>
         </div>
         {decision ? (
           <Badge tone={decision === 'confirmed' ? 'good' : 'bad'}>

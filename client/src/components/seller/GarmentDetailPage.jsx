@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { AlertTriangle, ArrowLeft, Image as ImageIcon, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteGarmentImage, fileUrl, getJob, patchWorkspace } from '../../api'
@@ -40,19 +39,6 @@ const REJECT_REASON_SV = {
   mask_has_holes: 'frilägningen fick hål i plagget',
   mask_cut_off_garment: 'frilägningen skar av delar av plagget',
   empty_mask: 'AI:n kunde inte frilägga plagget',
-}
-
-function ConfidenceBar({ value = 0 }) {
-  const pct = Math.round(value * 100)
-  const tone = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-        <motion.div className={`h-full rounded-full ${tone}`} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
-      </div>
-      <span className="text-xs font-medium text-slate-400">{pct}%</span>
-    </div>
-  )
 }
 
 const inputClass =
@@ -186,20 +172,14 @@ export default function GarmentDetailPage() {
 
   const textField = (key, placeholder = 'Okänt') => (
     <label className="flex flex-col gap-1.5">
-      <span className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
-        {garment.confidence?.[key] != null && <ConfidenceBar value={garment.confidence[key]} />}
-      </span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
       <input value={form[key] ?? ''} onChange={setField(key)} className={inputClass} placeholder={placeholder} />
     </label>
   )
 
   const selectField = (key, options, labelFor, allowEmpty = true) => (
     <label className="flex flex-col gap-1.5">
-      <span className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
-        {garment.confidence?.[key] != null && <ConfidenceBar value={garment.confidence[key]} />}
-      </span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{FIELD_LABELS[key]}</span>
       <select value={form[key] ?? ''} onChange={setField(key)} className={inputClass}>
         {allowEmpty && <option value="">Okänt</option>}
         {options.map((option) => (

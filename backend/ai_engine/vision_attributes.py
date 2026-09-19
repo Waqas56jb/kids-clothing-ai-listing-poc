@@ -165,11 +165,25 @@ def _image_content(image: Image.Image) -> dict:
     return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{_encode_image(image)}", "detail": "high"}}
 
 
+_OVERLAP_HINT = (
+    "Note: our segmentation step detected that this item overlaps or touches another "
+    "garment in the photo, so part of it may be physically hidden and the visible "
+    "portion can look unusual in isolation -- a bunched collar, hood, sleeve, waistband, "
+    "or fold peeking out from under another garment can look like a hat, beanie, "
+    "mittens, socks, or scarf out of context. Judge the category only from fabric/"
+    "structure you can actually see; if the visible portion is too small, cropped, or "
+    "ambiguous to be genuinely sure of the garment type, give category a low confidence "
+    "rather than a confident guess -- especially before choosing a small accessory "
+    "category over a larger garment category."
+)
+
+
 def extract_attributes(
     original_crop: Image.Image,
     cutout_crop: Image.Image | None,
     ocr_texts: list[str],
     detection_id: str,
+    overlaps_other_garment: bool = False,
 ) -> Attributes:
     if not SETTINGS.openai_api_key:
         return Attributes(detection_id=detection_id, unavailable=True)
@@ -181,9 +195,11 @@ def extract_attributes(
 
     content: list[dict] = [
         {"type": "text", "text": f"OCR text detected on this garment's label: {ocr_hint}"},
-        {"type": "text", "text": "Image A (original photo, crop region):"},
-        _image_content(original_crop),
     ]
+    if overlaps_other_garment:
+        content.append({"type": "text", "text": _OVERLAP_HINT})
+    content.append({"type": "text", "text": "Image A (original photo, crop region):"})
+    content.append(_image_content(original_crop))
     if cutout_crop is not None:
         content.append({"type": "text", "text": "Image B (background removed, may be imperfect at edges):"})
         content.append(_image_content(cutout_crop))
