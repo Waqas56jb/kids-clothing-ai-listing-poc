@@ -51,6 +51,17 @@ export const CATEGORY_OPTIONS = [
   'accessory', 'other',
 ]
 
+// Quick-browse groups for the marketplace's category strip (one tap browsing,
+// Vinted/Blocket-style) -- each maps to several canonical categories at once
+// so "Tröjor" catches sweaters, hoodies, cardigans, t-shirts, etc. together.
+export const CATEGORY_GROUPS = [
+  { key: 'tops', label: 'Tröjor', categories: ['sweater', 'hoodie', 'sweatshirt', 'cardigan', 't-shirt', 'top', 'shirt', 'blouse', 'longsleeve'] },
+  { key: 'bottoms', label: 'Byxor', categories: ['trousers', 'pants', 'jeans', 'leggings', 'shorts', 'overalls', 'tights'] },
+  { key: 'dresses', label: 'Klänningar', categories: ['dress', 'skirt'] },
+  { key: 'bodies', label: 'Bodies', categories: ['bodysuit', 'onesie', 'romper', 'sleeper', 'pajamas'] },
+  { key: 'outerwear', label: 'Ytterkläder', categories: ['jacket', 'coat', 'vest'] },
+]
+
 export const CONDITION_SV = {
   new: 'Ny',
   'like new': 'Som ny',

@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import { BRAND } from '../lib/sv'
 import { useCounts } from '../lib/useCounts'
+import BottomTabBar from './ui/BottomTabBar'
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL ?? (import.meta.env.DEV ? 'http://localhost:5174' : 'https://admin.miniplagg.com')
 
@@ -244,11 +245,13 @@ export default function SellerLayout() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28, ease: 'easeOut' }}
-          className="safe-bottom flex-1"
+          className="flex-1 pb-20 lg:pb-0"
         >
           <Outlet />
         </motion.main>
       </div>
+
+      <BottomTabBar />
     </div>
   )
 }

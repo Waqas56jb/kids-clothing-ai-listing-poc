@@ -5,6 +5,7 @@ import { Baby, Bell, Menu, MessageCircle, ShoppingCart, Store, UploadCloud, X } 
 import { useAuth } from '../../auth/AuthContext'
 import { BRAND } from '../../lib/sv'
 import { useCounts } from '../../lib/useCounts'
+import BottomTabBar from '../ui/BottomTabBar'
 
 const NAV = [
   { to: '/marknad', label: 'Marknaden', icon: Store },
@@ -154,11 +155,11 @@ export default function PublicLayout() {
         </AnimatePresence>
       </header>
 
-      <main className="safe-bottom">
+      <main className="pb-20 lg:pb-0">
         <Outlet />
       </main>
 
-      <footer className="border-t border-ink/10 py-8">
+      <footer className="hidden border-t border-ink/10 py-8 lg:block">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 text-center text-xs text-ink/50 sm:flex-row sm:text-left">
           <p>© {new Date().getFullYear()} {BRAND} · Köp och sälj begagnade barnkläder.</p>
           <div className="flex gap-4">
@@ -174,6 +175,8 @@ export default function PublicLayout() {
           </div>
         </div>
       </footer>
+
+      <BottomTabBar />
     </div>
   )
 }

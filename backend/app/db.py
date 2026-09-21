@@ -335,8 +335,14 @@ def list_public_listings(
         like = f"%{query.strip()}%"
         params.extend([like, like, like, like])
     if category:
-        clauses.append("l.category = %s")
-        params.append(category)
+        # A category "group" icon on the marketplace (e.g. "Tröjor") maps to
+        # several canonical categories at once (sweater, hoodie, cardigan, …),
+        # sent as a comma-separated list; a single category still works the
+        # same as before.
+        keys = [c.strip() for c in category.split(",") if c.strip()]
+        if keys:
+            clauses.append(f"l.category in ({', '.join(['%s'] * len(keys))})")
+            params.extend(keys)
     if size:
         clauses.append("lower(coalesce(l.size, '')) = lower(%s)")
         params.append(size)
