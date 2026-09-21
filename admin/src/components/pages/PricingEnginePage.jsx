@@ -2,15 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { AlertTriangle, Banknote, CheckCircle2, Pencil, Tag } from 'lucide-react'
-import { getJob, listJobs } from '../../api'
+import { getJob, getJobPricing, listJobs } from '../../api'
 import { computeInitialGroups } from '../../lib/groups'
-import {
-  approvePricing,
-  getGroupPricing,
-  getProjectPricing,
-  MOCK_CATEGORY_BASE_RANGES,
-  PRICING_STATUS,
-} from '../../lib/pricing'
+import { approvePricing, MOCK_CATEGORY_BASE_RANGES, PRICING_STATUS } from '../../lib/pricing'
 import { categoryLabel } from '../../lib/sv'
 import Card from '../ui/Card'
 import StatCard from '../ui/StatCard'
@@ -35,38 +29,66 @@ export default function PricingEnginePage() {
   async function load() {
     const jobs = await listJobs().catch(() => [])
     const done = jobs.filter((j) => j.status === 'done')
-    const details = await Promise.all(done.map((j) => getJob(j.job_id)))
+
+    // One job failing to load (a stale test job, a transient timeout, an
+    // unexpected shape) must never leave every *other* job's pricing stuck
+    // on the loading skeleton forever -- each job is fetched and processed
+    // independently, in parallel, and a failure only drops that one job.
+    const settled = await Promise.allSettled(
+      done.map(async (j) => {
+        const job = await getJob(j.job_id)
+        const garments = job.result?.garments ?? []
+        // Fetched once per job and reused for every garment/group lookup
+        // below, instead of re-fetching the same job's pricing again for
+        // each individual group (which also makes the server redo work).
+        const pricingRows = await getJobPricing(job.job_id)
+        const pricingByGarmentId = new Map(pricingRows.filter((r) => !r.groupId).map((r) => [r.garmentId, r]))
+        const pricingByGroupId = new Map(pricingRows.filter((r) => r.groupId).map((r) => [r.groupId, r]))
+
+        const garmentRows = []
+        for (const garment of garments) {
+          const pricing = pricingByGarmentId.get(garment.id)
+          if (!pricing) continue
+          garmentRows.push({
+            id: pricing.id,
+            jobId: job.job_id,
+            detectionId: garment.detection_ids[0],
+            projectName: job.job_id.slice(0, 10),
+            garmentLabel: categoryLabel(garment.category),
+            category: garment.category,
+            brand: garment.brand,
+            size: garment.size,
+            // Key, not label: PricingTable maps 'needs review' and condition keys to Swedish.
+            condition: garment.defects ? 'needs review' : garment.condition,
+            pricing,
+          })
+        }
+
+        const savedGroups = job.workspace?.groups?.groups
+        const { groups } = savedGroups ? { groups: savedGroups } : computeInitialGroups(garments)
+        const packageRows = groups
+          .map((group) => ({ jobId: job.job_id, projectName: job.job_id.slice(0, 10), group, pricing: pricingByGroupId.get(group.id) }))
+          .filter((row) => row.pricing)
+
+        return { garmentRows, packageRows }
+      }),
+    )
 
     const garmentRows = []
     const packageRows = []
-
-    for (const job of details) {
-      const garments = job.result?.garments ?? []
-      const pricings = await getProjectPricing(job.job_id, garments)
-      garments.forEach((garment, i) => {
-        garmentRows.push({
-          id: pricings[i].id,
-          jobId: job.job_id,
-          detectionId: garment.detection_ids[0],
-          projectName: job.job_id.slice(0, 10),
-          garmentLabel: categoryLabel(garment.category),
-          category: garment.category,
-          brand: garment.brand,
-          size: garment.size,
-          // Key, not label: PricingTable maps 'needs review' and condition keys to Swedish.
-          condition: garment.defects ? 'needs review' : garment.condition,
-          pricing: pricings[i],
-        })
-      })
-
-      const savedGroups = job.workspace?.groups?.groups
-      const { groups } = savedGroups ? { groups: savedGroups } : computeInitialGroups(garments)
-      const groupPricings = await Promise.all(groups.map((g) => getGroupPricing(job.job_id, g)))
-      groups.forEach((group, i) => {
-        packageRows.push({ jobId: job.job_id, projectName: job.job_id.slice(0, 10), group, pricing: groupPricings[i] })
-      })
+    let failed = 0
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        garmentRows.push(...result.value.garmentRows)
+        packageRows.push(...result.value.packageRows)
+      } else {
+        failed += 1
+        console.error('[pricing] failed to load one job', result.reason)
+      }
     }
-
+    if (failed > 0) {
+      toast.warn(`Kunde inte hämta prisförslag för ${failed} av ${done.length} projekt.`)
+    }
     setRows(garmentRows)
     setPackages(packageRows)
   }

@@ -205,24 +205,38 @@ def garments_from_result(result: PipelineResult | dict | None) -> list[dict[str,
 
 
 def seed_workspace(job_id: str, result: PipelineResult | dict | None) -> dict[str, Any]:
+    """Fill in any pricing/listing/group defaults this job's workspace is
+    still missing. Called on every read of a job's pricing (the admin
+    pricing screen alone calls this several times per job), so it must be
+    cheap once a job has already been seeded -- write to the database only
+    when something was actually newly added, not on every read."""
     garments = garments_from_result(result)
     current = db.get_workspace(job_id)
+    had_groups = bool(current.get("groups"))
     groups = current.get("groups") or compute_groups(garments)
     listings = dict(current.get("listings") or {})
+    changed = not had_groups
     for garment in garments:
-        listings.setdefault(
-            garment["id"],
-            {
+        if garment["id"] not in listings:
+            listings[garment["id"]] = {
                 "title": generate_title(garment),
                 "description": generate_description(garment),
                 "status": "draft",
-            },
-        )
+            }
+            changed = True
     pricing = dict(current.get("pricing") or {})
     for garment in garments:
-        pricing.setdefault(f"garment:{job_id}:{garment['id']}", _garment_pricing(job_id, garment))
+        key = f"garment:{job_id}:{garment['id']}"
+        if key not in pricing:
+            pricing[key] = _garment_pricing(job_id, garment)
+            changed = True
     for group in groups.get("groups") or []:
-        pricing.setdefault(f"group:{job_id}:{group['id']}", _group_pricing(job_id, group))
+        key = f"group:{job_id}:{group['id']}"
+        if key not in pricing:
+            pricing[key] = _group_pricing(job_id, group)
+            changed = True
+    if not changed:
+        return current
     current.update(
         {
             "garment_edits": current.get("garment_edits") or {},
