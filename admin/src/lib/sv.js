@@ -119,6 +119,9 @@ export const ORDER_STATUS_SV = {
   pending_payment: 'Väntar på betalning',
   paid: 'Betald',
   cancelled: 'Avbruten',
+  payment_failed: 'Betalning misslyckades',
+  refunded: 'Återbetald',
+  partially_refunded: 'Delvis återbetald',
 }
 
 export const ORDER_ITEM_STATUS_SV = {
@@ -127,6 +130,8 @@ export const ORDER_ITEM_STATUS_SV = {
   shipped: 'Skickad',
   delivered: 'Levererad',
   cancelled: 'Avbruten',
+  refunded: 'Återbetald',
+  partially_refunded: 'Delvis återbetald',
 }
 
 export const NOTIFICATION_KIND_SV = {
@@ -138,6 +143,8 @@ export const NOTIFICATION_KIND_SV = {
   offer_declined: 'Bud avböjt',
   message: 'Meddelande',
   order_shipped: 'Skickat',
+  refund: 'Återbetalning',
+  payment_failed: 'Betalning misslyckades',
 }
 
 export function orderStatusLabel(key) {

@@ -23,6 +23,7 @@ import MatchingReviewPage from './components/seller/MatchingReviewPage'
 import GroupsPage from './components/seller/GroupsPage'
 import ListingPreviewPage from './components/seller/ListingPreviewPage'
 import MyListingsPage from './components/seller/MyListingsPage'
+import PayoutsPage from './components/seller/PayoutsPage'
 
 function HomeGate() {
   const { loading, session } = useAuth()
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/groups/:jobId" element={<GroupsPage />} />
           <Route path="/listings/:jobId" element={<ListingPreviewPage />} />
           <Route path="/annonser" element={<MyListingsPage />} />
+          <Route path="/utbetalningar" element={<PayoutsPage />} />
           {/* Shopping, notifications and messages live inside the seller panel too. */}
           <Route path="/varukorg" element={<CartPage />} />
           <Route path="/kassa" element={<CheckoutPage />} />

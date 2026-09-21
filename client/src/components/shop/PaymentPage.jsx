@@ -52,7 +52,9 @@ export default function PaymentPage() {
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-10 sm:py-14">
       <h1 className="font-display text-3xl font-semibold text-ink">Betala</h1>
-      <p className="mt-1 text-sm text-slate-500">Order {order.id.slice(0, 8)} · {formatSek(order.total)}</p>
+      <p className="mt-1 text-sm text-slate-500">
+        Att betala {formatSek(order.total)} <span className="text-slate-400">· Ordernummer {order.id.slice(0, 8)}</span>
+      </p>
 
       <Card className="mt-6 p-5 sm:p-6">
         <div className="rounded-2xl bg-amber-50 p-3 text-xs text-amber-800">

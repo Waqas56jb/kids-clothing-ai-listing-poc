@@ -129,7 +129,21 @@ def confirm_stripe(order: dict[str, Any], session_id: str | None) -> dict[str, A
         raise CheckoutError("Betalningen hör inte till den här ordern.")
     if session.get("payment_status") != "paid":
         raise CheckoutError("Betalningen är inte genomförd än.")
-    return complete_order(order["id"], payment_ref=session.id)
+    payment_intent_id = session.get("payment_intent")
+    if isinstance(payment_intent_id, dict):
+        payment_intent_id = payment_intent_id.get("id")
+    if payment_intent_id:
+        db.update_order(order["id"], stripe_payment_intent_id=payment_intent_id)
+    completed = complete_order(order["id"], payment_ref=payment_intent_id or session.id)
+
+    # The buyer's own return-URL request and Stripe's webhook both race to
+    # confirm the same order -- whichever gets here first pays the sellers;
+    # transfer_for_paid_order is itself idempotent per order item, so the
+    # second caller (webhook or return-URL, in either order) is a no-op.
+    from app import stripe_connect
+
+    stripe_connect.transfer_for_paid_order(completed)
+    return completed
 
 
 def complete_order(order_id: str, payment_ref: str | None = None) -> dict[str, Any]:

@@ -846,7 +846,7 @@ def fetch_order(order_id: str) -> dict[str, Any] | None:
 
 
 def update_order(order_id: str, **fields: Any) -> dict[str, Any] | None:
-    allowed = {"status", "payment_ref", "paid_at", "payment_provider"}
+    allowed = {"status", "payment_ref", "paid_at", "payment_provider", "stripe_payment_intent_id", "refunded_amount"}
     sets = [f"{key} = %s" for key in fields if key in allowed]
     params: list[Any] = [value for key, value in fields.items() if key in allowed]
     if sets:
@@ -882,6 +882,133 @@ def list_orders(user_id: str) -> dict[str, list[dict[str, Any]]]:
         sales.append(order)
     sales.sort(key=lambda o: str(o.get("created_at")), reverse=True)
     return {"purchases": [p for p in purchases if p], "sales": sales}
+
+
+# ---------------------------------------------------------------------------
+# Stripe Connect: seller payout accounts, transfers, refunds, webhooks
+# ---------------------------------------------------------------------------
+
+
+def set_seller_stripe_account(user_id: str, account_id: str) -> None:
+    _pg_execute("update public.profiles set stripe_account_id = %s where id = %s", (account_id, user_id))
+
+
+def update_seller_stripe_status(
+    account_id: str, *, charges_enabled: bool, payouts_enabled: bool, details_submitted: bool
+) -> dict[str, Any] | None:
+    row = _pg_execute(
+        "update public.profiles set stripe_charges_enabled = %s, stripe_payouts_enabled = %s, "
+        "stripe_details_submitted = %s, stripe_onboarding_updated_at = now() "
+        "where stripe_account_id = %s returning *",
+        (charges_enabled, payouts_enabled, details_submitted, account_id),
+        fetch="one",
+    )
+    return dict(row) if row else None
+
+
+def update_order_item_payout(item_id: str, **fields: Any) -> None:
+    allowed = {"commission_percent", "commission_amount", "seller_amount", "stripe_transfer_id", "transfer_status", "refunded_amount"}
+    sets = [f"{key} = %s" for key in fields if key in allowed]
+    params: list[Any] = [value for key, value in fields.items() if key in allowed]
+    if not sets:
+        return
+    params.append(item_id)
+    _pg_execute(f"update public.order_items set {', '.join(sets)}, updated_at = now() where id = %s", tuple(params))
+
+
+def list_pending_onboarding_transfers(seller_id: str) -> list[dict[str, Any]]:
+    rows = _pg_execute(
+        "select * from public.order_items where seller_id = %s and transfer_status = 'pending_onboarding'",
+        (seller_id,),
+        fetch="all",
+    )
+    return [_order_item_row(row) for row in (rows or [])]
+
+
+def mark_transfer_reversed(stripe_transfer_id: str) -> None:
+    _pg_execute(
+        "update public.order_items set transfer_status = 'reversed', updated_at = now() where stripe_transfer_id = %s",
+        (stripe_transfer_id,),
+    )
+
+
+def create_refund(order_id: str, order_item_id: str, amount: int, reason: str | None, created_by: str) -> dict[str, Any]:
+    row = _pg_execute(
+        "insert into public.refunds (order_id, order_item_id, amount, reason, created_by) "
+        "values (%s, %s, %s, %s, %s) returning *",
+        (order_id, order_item_id, int(amount), reason, created_by),
+        fetch="one",
+    )
+    return dict(row)  # type: ignore[arg-type]
+
+
+def update_refund(refund_id: str, **fields: Any) -> dict[str, Any] | None:
+    allowed = {"status", "stripe_refund_id", "stripe_transfer_reversal_id"}
+    sets = [f"{key} = %s" for key in fields if key in allowed]
+    params: list[Any] = [value for key, value in fields.items() if key in allowed]
+    if sets:
+        params.append(refund_id)
+        _pg_execute(f"update public.refunds set {', '.join(sets)}, updated_at = now() where id = %s", tuple(params))
+    row = _pg_execute("select * from public.refunds where id = %s", (refund_id,), fetch="one")
+    return dict(row) if row else None
+
+
+def recompute_order_refund_status(order_id: str) -> None:
+    items = _pg_execute("select status from public.order_items where order_id = %s", (order_id,), fetch="all") or []
+    if not items:
+        return
+    statuses = {row["status"] for row in items}
+    if statuses == {"refunded"}:
+        new_status = "refunded"
+    elif "refunded" in statuses:
+        new_status = "partially_refunded"
+    else:
+        return  # nothing refunded yet -- leave the order's own status alone
+    total_refunded = _pg_execute(
+        "select coalesce(sum(refunded_amount), 0) as total from public.order_items where order_id = %s",
+        (order_id,),
+        fetch="one",
+    )
+    _pg_execute(
+        "update public.orders set status = %s, refunded_amount = %s where id = %s",
+        (new_status, int((total_refunded or {}).get("total") or 0), order_id),
+    )
+
+
+def sync_order_refund_from_stripe(payment_intent_id: str, amount_refunded_minor: int) -> None:
+    """Reconcile a refund made directly in the Stripe Dashboard (bypassing
+    our own refund_order_item) so `orders.refunded_amount` never drifts from
+    what Stripe actually refunded."""
+    row = _pg_execute(
+        "select id, total from public.orders where stripe_payment_intent_id = %s", (payment_intent_id,), fetch="one"
+    )
+    if not row:
+        return
+    order_id = str(row["id"])
+    refunded = amount_refunded_minor // 100
+    status = "refunded" if refunded >= int(row["total"]) else "partially_refunded" if refunded > 0 else None
+    if status:
+        _pg_execute("update public.orders set status = %s, refunded_amount = %s where id = %s", (status, refunded, order_id))
+
+
+def is_webhook_event_processed(event_id: str) -> bool:
+    row = _pg_execute("select 1 from public.stripe_webhook_events where id = %s", (event_id,), fetch="one")
+    return row is not None
+
+
+def mark_webhook_event_processed(event_id: str, event_type: str) -> None:
+    # Recorded only *after* handling succeeds, deliberately -- if we marked
+    # it first and the handler then failed partway (a transient DB hiccup, a
+    # Stripe API blip), Stripe's retry would see a "done" row and never try
+    # again, silently dropping a payment confirmation or a refund. A narrow
+    # race between two truly-simultaneous deliveries of the same event is an
+    # acceptable trade for that: every handler below (complete_order,
+    # transfer_for_paid_order, update_order_item_payout, ...) is already
+    # safe to run twice on its own.
+    _pg_execute(
+        "insert into public.stripe_webhook_events (id, type) values (%s, %s) on conflict (id) do nothing",
+        (event_id, event_type),
+    )
 
 
 def to_iso(unix_seconds: float) -> str:

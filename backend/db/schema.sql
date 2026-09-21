@@ -191,6 +191,65 @@ create table if not exists public.order_items (
   updated_at timestamptz not null default now()
 );
 
+-- Stripe Connect: a "separate charges and transfers" marketplace. The buyer
+-- pays Miniplagg's own platform account (one Checkout Session covers a cart
+-- that can span several sellers), then once payment is confirmed a Transfer
+-- moves each seller's own cut to their connected account, keeping the
+-- commission behind automatically -- there's no per-seller destination on
+-- the charge itself, since a Checkout Session only supports one destination
+-- and a cart routinely has more than one seller in it.
+alter table public.profiles add column if not exists stripe_account_id text unique;
+alter table public.profiles add column if not exists stripe_charges_enabled boolean not null default false;
+alter table public.profiles add column if not exists stripe_payouts_enabled boolean not null default false;
+alter table public.profiles add column if not exists stripe_details_submitted boolean not null default false;
+alter table public.profiles add column if not exists stripe_onboarding_updated_at timestamptz;
+
+alter table public.orders add column if not exists stripe_payment_intent_id text;
+alter table public.orders add column if not exists refunded_amount int not null default 0;
+alter table public.orders drop constraint if exists orders_status_check;
+alter table public.orders add constraint orders_status_check
+  check (status in ('pending_payment', 'paid', 'cancelled', 'refunded', 'partially_refunded', 'payment_failed'));
+
+alter table public.order_items add column if not exists commission_percent numeric(5,2);
+alter table public.order_items add column if not exists commission_amount int not null default 0;
+alter table public.order_items add column if not exists seller_amount int not null default 0;
+alter table public.order_items add column if not exists stripe_transfer_id text;
+alter table public.order_items add column if not exists transfer_status text not null default 'not_applicable';
+alter table public.order_items drop constraint if exists order_items_transfer_status_check;
+alter table public.order_items add constraint order_items_transfer_status_check
+  check (transfer_status in ('not_applicable', 'pending', 'pending_onboarding', 'transferred', 'failed', 'reversed'));
+alter table public.order_items add column if not exists refunded_amount int not null default 0;
+alter table public.order_items drop constraint if exists order_items_status_check;
+alter table public.order_items add constraint order_items_status_check
+  check (status in ('pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded', 'partially_refunded'));
+
+-- One row per Stripe event id so a retried/duplicated webhook delivery is
+-- only ever acted on once (Stripe explicitly does not guarantee exactly-once
+-- delivery -- this table is what makes our handler idempotent).
+create table if not exists public.stripe_webhook_events (
+  id text primary key,
+  type text not null,
+  received_at timestamptz not null default now()
+);
+
+create table if not exists public.refunds (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders (id) on delete cascade,
+  order_item_id uuid references public.order_items (id) on delete set null,
+  amount int not null,
+  reason text,
+  stripe_refund_id text,
+  stripe_transfer_reversal_id text,
+  status text not null default 'pending' check (status in ('pending', 'succeeded', 'failed')),
+  created_by uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists refunds_order_idx on public.refunds (order_id);
+create index if not exists order_items_transfer_status_idx on public.order_items (transfer_status);
+create index if not exists profiles_stripe_account_idx on public.profiles (stripe_account_id);
+
 create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
 create index if not exists messages_listing_idx on public.messages (listing_id, created_at);
 create index if not exists messages_recipient_idx on public.messages (recipient_id, read_at);
@@ -227,4 +286,9 @@ create trigger listings_updated_at
 drop trigger if exists orders_updated_at on public.orders;
 create trigger orders_updated_at
   before update on public.orders
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists refunds_updated_at on public.refunds;
+create trigger refunds_updated_at
+  before update on public.refunds
   for each row execute function public.set_updated_at();

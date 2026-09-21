@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, ExternalLink, HandCoins, Heart, PackageCheck, Reply, ShoppingBag, Tag, Truck, X } from 'lucide-react'
+import { Check, ExternalLink, HandCoins, Heart, PackageCheck, Reply, ShoppingBag, Tag, Truck, Undo2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import {
   counterOffer,
@@ -8,6 +8,7 @@ import {
   myFavorites,
   myListings,
   myOffers,
+  refundOrderItem,
   respondOffer,
   shipOrderItem,
   storageUrl,
@@ -260,11 +261,24 @@ function OrderCard({ order, asSeller, onChange }) {
       setBusy(false)
     }
   }
+  async function refund(item) {
+    if (!window.confirm(`Återbetala ${formatSek(item.price)} till köparen för ”${item.title}”? Det går inte att ångra.`)) return
+    setBusy(true)
+    try {
+      const updated = await refundOrderItem(order.id, item.id)
+      onChange(updated)
+      toast.success('Återbetalning genomförd.')
+    } catch (err) {
+      toast.error(err.message || 'Kunde inte återbetala')
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-ink">
-          Order {order.id.slice(0, 8)} · {formatDate(order.created_at)}
+          {formatDate(order.created_at)} <span className="font-normal text-slate-400">· Ordernummer {order.id.slice(0, 8)}</span>
         </p>
         <Badge tone={order.status === 'paid' ? 'good' : order.status === 'cancelled' ? 'bad' : 'ok'}>{orderStatusLabel(order.status)}</Badge>
       </div>
@@ -284,6 +298,11 @@ function OrderCard({ order, asSeller, onChange }) {
             {asSeller && item.status === 'paid' && (
               <Button size="sm" disabled={busy} onClick={() => ship(item.id)}>
                 <Truck className="h-3.5 w-3.5" /> Markera som skickad
+              </Button>
+            )}
+            {asSeller && (item.status === 'paid' || item.status === 'shipped') && (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => refund(item)}>
+                <Undo2 className="h-3.5 w-3.5" /> Återbetala
               </Button>
             )}
           </li>

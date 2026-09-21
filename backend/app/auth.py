@@ -38,6 +38,13 @@ def _public_profile(row: dict[str, Any]) -> dict[str, Any]:
         "email": row.get("email"),
         "full_name": row.get("full_name"),
         "role": row.get("role") or "seller",
+        # Not secret (unlike password_hash, deliberately left out) -- this
+        # is always the account's own profile, seen only by that account,
+        # and every Stripe Connect endpoint needs it fresh on every request.
+        "stripe_account_id": row.get("stripe_account_id"),
+        "stripe_charges_enabled": bool(row.get("stripe_charges_enabled")),
+        "stripe_payouts_enabled": bool(row.get("stripe_payouts_enabled")),
+        "stripe_details_submitted": bool(row.get("stripe_details_submitted")),
     }
 
 

@@ -262,3 +262,21 @@ export async function confirmOrder(orderId, sessionId) {
 export async function shipOrderItem(orderId, itemId) {
   return jsonRequest(`/api/orders/${orderId}/items/${itemId}/ship`, { method: 'POST' }, 'Kunde inte markera som skickad')
 }
+
+export async function refundOrderItem(orderId, itemId, reason) {
+  return jsonRequest(`/api/orders/${orderId}/items/${itemId}/refund`, { method: 'POST', body: { reason } }, 'Kunde inte återbetala')
+}
+
+// ---- Stripe Connect: seller payout account ----
+
+export async function getConnectStatus() {
+  return jsonRequest('/api/connect/status', {}, 'Kunde inte hämta status för utbetalningskontot')
+}
+
+export async function getConnectOnboardingLink() {
+  return jsonRequest('/api/connect/onboarding-link', { method: 'POST' }, 'Kunde inte starta anslutningen')
+}
+
+export async function refreshConnectStatus() {
+  return jsonRequest('/api/connect/refresh', { method: 'POST' }, 'Kunde inte uppdatera status')
+}

@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from app import blobstore, commerce, db, jobs, notifications, workspace as workspace_mod
+from app import blobstore, commerce, db, jobs, notifications, stripe_connect, workspace as workspace_mod
 from app import auth as auth_mod
 from app.auth import require_user
 
@@ -764,6 +764,72 @@ async def ship_order_item(order_id: str, item_id: str, user: Annotated[dict, Dep
         data={"order_id": order_id},
     )
     return updated
+
+
+@app.post("/api/orders/{order_id}/items/{item_id}/refund")
+async def refund_order_item(order_id: str, item_id: str, body: dict[str, Any] | None = None, user: dict = Depends(require_user)):
+    order = _load_order(order_id, user)
+    item = next((i for i in order["items"] if i["id"] == item_id), None)
+    is_seller = bool(item) and item.get("seller_id") == user["id"]
+    if not (is_seller or user.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Bara säljaren eller Miniplagg kan återbetala den här ordern")
+    try:
+        return stripe_connect.refund_order_item(order_id, item_id, user["id"], (body or {}).get("reason"))
+    except stripe_connect.ConnectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# ---- Stripe Connect: seller payout accounts ----
+
+
+@app.get("/api/connect/status")
+async def connect_status(user: Annotated[dict, Depends(require_user)]):
+    return stripe_connect.account_status(user)
+
+
+@app.post("/api/connect/onboarding-link")
+async def connect_onboarding_link(user: Annotated[dict, Depends(require_user)]):
+    try:
+        return {"url": stripe_connect.create_onboarding_link(user)}
+    except stripe_connect.ConnectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 -- Stripe API failure
+        raise HTTPException(status_code=502, detail=f"Kunde inte starta anslutningen: {exc}") from exc
+
+
+@app.post("/api/connect/refresh")
+async def connect_refresh(user: Annotated[dict, Depends(require_user)]):
+    """Re-pull this seller's own account status from Stripe -- used right
+    after they return from the onboarding flow, since the account.updated
+    webhook can lag by a few seconds."""
+    account_id = user.get("stripe_account_id")
+    if not account_id:
+        return stripe_connect.account_status(user)
+    try:
+        stripe_connect.sync_account_status(account_id)
+    except stripe_connect.ConnectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    refreshed = db.fetch_profile(user["id"]) or user
+    return stripe_connect.account_status(refreshed)
+
+
+@app.post("/api/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    try:
+        event = stripe_connect.verify_webhook(payload, signature)
+    except Exception as exc:  # noqa: BLE001 -- invalid signature or malformed payload; never retried, so 400 not 500
+        raise HTTPException(status_code=400, detail=f"Ogiltig webhook: {exc}") from exc
+    try:
+        stripe_connect.handle_webhook_event(event)
+    except Exception as exc:  # noqa: BLE001
+        # A genuine failure must come back as an error so Stripe retries the
+        # delivery later -- see db.mark_webhook_event_processed for why the
+        # event is only marked done once handling actually succeeds.
+        print(f"[stripe webhook] handler failed for {getattr(event, 'id', '?')}: {exc}")
+        raise HTTPException(status_code=500, detail="Webhook-hantering misslyckades") from exc
+    return {"received": True}
 
 
 @app.get("/api/me/favorites")

@@ -34,6 +34,8 @@ KIND_LABELS = {
     "offer_declined": "Bud avböjt",
     "message": "Meddelande",
     "order_shipped": "Skickat",
+    "refund": "Återbetalning",
+    "payment_failed": "Betalning misslyckades",
 }
 
 

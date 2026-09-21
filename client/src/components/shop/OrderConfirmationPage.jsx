@@ -64,8 +64,9 @@ export default function OrderConfirmationPage() {
         </span>
         <h1 className="mt-4 font-display text-3xl font-semibold text-ink">{paid ? 'Tack för ditt köp!' : 'Betalningen är inte klar'}</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Order {order.id.slice(0, 8)} · {formatDate(order.created_at)} · {orderStatusLabel(order.status)}
+          {formatDate(order.created_at)} · {orderStatusLabel(order.status)}
         </p>
+        <p className="mt-0.5 text-xs text-slate-400">Ordernummer {order.id.slice(0, 8)}</p>
         {paid && <p className="mt-1 text-sm text-slate-500">Vi har meddelat säljaren, som skickar plagget till din adress. Du får en notis när det är skickat.</p>}
         {!paid && (
           <Link to={`/kassa/betala/${order.id}`} className="mt-4 inline-block">
