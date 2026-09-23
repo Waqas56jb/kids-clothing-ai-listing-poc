@@ -74,7 +74,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <img
-              src="/landing/flatlay.jpg"
+              src="/landing/hanging.jpg"
               alt=""
               className="h-24 w-24 shrink-0 rounded-2xl object-cover sm:h-40 sm:w-40"
             />
