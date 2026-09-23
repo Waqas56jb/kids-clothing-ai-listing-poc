@@ -472,10 +472,11 @@ def run_pipeline(
         cpu_pool.shutdown(wait=True)
         vision_pool.shutdown(wait=True)
 
-    if attributes and any(a.unavailable for a in attributes.values()):
+    unavailable_count = sum(1 for a in attributes.values() if a.unavailable)
+    if unavailable_count:
         notes.append(
-            "OPENAI_API_KEY saknas eller ett anrop misslyckades — attribut kunde inte läsas för alla plagg; "
-            "matchningen använde bara bild- och textsignaler."
+            f"AI-tjänsten kunde inte läsa av {unavailable_count} plagg (tillfälligt fel). De visas som egna plagg "
+            "markerade för granskning i stället för att matchas mot andra bilder."
         )
 
     # A detector proposal that turns out to be a hang tag, label, or stray

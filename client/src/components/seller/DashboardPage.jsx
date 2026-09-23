@@ -1,14 +1,9 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, CheckCircle2, FolderOpen, Plus, Settings2, Shirt } from 'lucide-react'
-import { toast } from 'react-toastify'
-import { listJobs } from '../../api'
-import { summarizeJobs } from '../../lib/jobsStats'
+import { ArrowRight, ChevronRight, FolderOpen, Heart, Plus, Search, Shirt, Store } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
-import StatCard from '../ui/StatCard'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 14 },
@@ -19,28 +14,17 @@ const fadeUp = {
   }),
 }
 
+const QUICK_ACTIONS = [
+  { to: '/upload', label: 'Lägg upp nya plagg', hint: 'Ta bilder så hjälper AI dig', icon: Shirt, tone: 'bg-sky-50 text-sky-600' },
+  { to: '/annonser?flik=favoriter', label: 'Mina favoriter', hint: 'Spara dina favoriter', icon: Heart, tone: 'bg-rose-50 text-rose-600' },
+  { to: '/marknad', label: 'Se senaste annonserna', hint: 'Upptäck nya fynd', icon: Store, tone: 'bg-emerald-50 text-emerald-600' },
+  { to: '/annonser', label: 'Mina uppladdningar', hint: 'Se och hantera', icon: FolderOpen, tone: 'bg-violet-50 text-violet-600' },
+]
+
 export default function DashboardPage() {
-  const [jobs, setJobs] = useState(null)
   const navigate = useNavigate()
-  const { profile, loading, session } = useAuth()
+  const { profile } = useAuth()
   const firstName = profile?.full_name?.split(' ')[0]
-
-  useEffect(() => {
-    if (loading) return
-    if (!session) {
-      setJobs([])
-      return
-    }
-    listJobs()
-      .then(setJobs)
-      .catch((err) => {
-        console.error(err)
-        toast.error(err.message || 'Kunde inte hämta dina omgångar')
-        setJobs([])
-      })
-  }, [loading, session])
-
-  const { done, processing, totalGarments } = summarizeJobs(jobs ?? [])
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:py-12">
@@ -75,46 +59,44 @@ export default function DashboardPage() {
         </div>
       </motion.section>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:mt-8 lg:grid-cols-4 lg:gap-4">
-        <StatCard label="Omgångar" value={jobs?.length ?? '—'} icon={FolderOpen} tone="brand" />
-        <StatCard label="Plagg" value={jobs ? totalGarments : '—'} icon={Shirt} tone="emerald" />
-        <StatCard label="Bearbetas" value={jobs ? processing.length : '—'} icon={Settings2} tone="amber" />
-        <StatCard label="Klara" value={jobs ? done.length : '—'} icon={CheckCircle2} tone="emerald" />
-      </div>
-
-      <div className="mt-6 lg:mt-8">
-        <Card className="flex flex-col justify-between overflow-hidden p-5 sm:p-6 lg:max-w-xl">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">Nästa steg</p>
-            <h2 className="mt-2 font-display text-2xl font-semibold text-ink">Håll igång försäljningen</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              Ladda upp en ny omgång när du har bilder redo. Resultaten dyker upp här så fort bearbetningen är klar.
-            </p>
-          </div>
-          <div className="mt-6 space-y-2">
-            <button
-              type="button"
-              onClick={() => navigate('/upload')}
-              className="flex w-full items-center justify-between rounded-2xl border border-moss/15 bg-moss-soft/60 px-4 py-3.5 text-left transition hover:bg-moss-soft"
-            >
-              <span>
-                <span className="block text-sm font-semibold text-ink">Starta en ny uppladdning</span>
-                <span className="text-xs text-slate-500">Upp till 40 bilder per omgång</span>
-              </span>
-              <ArrowUpRight className="h-5 w-5 text-moss" />
-            </button>
-            <Link
-              to="/annonser"
-              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left transition hover:bg-sand/60"
-            >
-              <span>
-                <span className="block text-sm font-semibold text-ink">Mina annonser & bud</span>
-                <span className="text-xs text-slate-500">Publicerade plagg, favoriter och inkomna bud</span>
-              </span>
-              <ArrowUpRight className="h-5 w-5 text-slate-400" />
-            </Link>
+      <motion.div custom={1} initial="hidden" animate="show" variants={fadeUp} className="mt-6 lg:mt-8">
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-4 p-5 sm:gap-8 sm:p-8">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">Upptäck</p>
+              <h2 className="mt-2 font-display text-2xl font-semibold text-ink sm:text-3xl">Gå till marknaden</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500">Hitta unika barnplagg till fantastiska priser.</p>
+              <Link
+                to="/marknad"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-moss px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss/90"
+              >
+                <Search className="h-4 w-4" /> Till marknaden <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <img
+              src="/landing/flatlay.jpg"
+              alt=""
+              className="h-24 w-24 shrink-0 rounded-2xl object-cover sm:h-40 sm:w-40"
+            />
           </div>
         </Card>
+      </motion.div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 sm:gap-4">
+        {QUICK_ACTIONS.map((action, index) => (
+          <motion.div key={action.to} custom={index + 2} initial="hidden" animate="show" variants={fadeUp}>
+            <Card as={Link} to={action.to} hover className="flex h-full items-start justify-between gap-2 p-4 sm:p-5">
+              <div className="min-w-0">
+                <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${action.tone}`}>
+                  <action.icon className="h-5 w-5" strokeWidth={1.75} />
+                </span>
+                <p className="mt-3 text-sm font-semibold text-ink">{action.label}</p>
+                <p className="mt-1 text-xs text-slate-500">{action.hint}</p>
+              </div>
+              <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-slate-300" />
+            </Card>
+          </motion.div>
+        ))}
       </div>
     </div>
   )

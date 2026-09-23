@@ -6,7 +6,7 @@ transformers
 open_clip_torch
 paddlepaddle
 paddleocr
-openai
+openai==3.16.2
 pydantic
 python-dotenv
 pillow
@@ -21,4 +21,4 @@ PyJWT
 bcrypt
 boto3
 pywebpush
-stripe
+stripe==15.6.1

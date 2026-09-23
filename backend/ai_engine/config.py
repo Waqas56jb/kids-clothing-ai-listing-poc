@@ -14,6 +14,12 @@ class Settings:
     openai_api_key: str | None
     openai_vision_model: str
     openai_text_model: str
+    # The organization's tokens-per-minute limit for the vision model, and a
+    # per-call estimate used to pace calls under it (two "detail: high"
+    # images plus the prompt run ~2.9k tokens in practice).
+    openai_vision_tpm: int
+    openai_vision_tokens_per_call: int
+    openai_max_retries: int
 
     match_merge_threshold: float
     match_review_threshold: float
@@ -53,6 +59,9 @@ def load_settings() -> Settings:
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_vision_model=os.getenv("OPENAI_VISION_MODEL", "gpt-4o"),
         openai_text_model=os.getenv("OPENAI_TEXT_MODEL", "gpt-4o-mini"),
+        openai_vision_tpm=_int_env("OPENAI_VISION_TPM", 30000),
+        openai_vision_tokens_per_call=_int_env("OPENAI_VISION_TOKENS_PER_CALL", 3000),
+        openai_max_retries=_int_env("OPENAI_MAX_RETRIES", 6),
         match_merge_threshold=_float_env("MATCH_MERGE_THRESHOLD", 0.85),
         match_review_threshold=_float_env("MATCH_REVIEW_THRESHOLD", 0.65),
         gender_confidence_threshold=_float_env("GENDER_CONFIDENCE_THRESHOLD", 0.75),

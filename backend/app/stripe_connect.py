@@ -25,6 +25,7 @@ import os
 from typing import Any
 
 from app import commerce, db, notifications
+from app.commerce import stripe_as_dict
 
 # Placeholder default -- Miniplagg's own business decision, not ours. Set
 # PLATFORM_COMMISSION_PERCENT in the environment to the agreed rate before
@@ -107,7 +108,7 @@ def sync_account_status(account_id: str) -> dict[str, Any] | None:
     persist them -- called both right after onboarding returns and from the
     `account.updated` webhook, so status is never stuck stale."""
     stripe = _stripe()
-    account = stripe.Account.retrieve(account_id)
+    account = stripe_as_dict(stripe.Account.retrieve(account_id))
     profile = db.update_seller_stripe_status(
         account_id,
         charges_enabled=bool(account.get("charges_enabled")),
@@ -274,7 +275,7 @@ def handle_webhook_event(event: Any) -> None:
     if db.is_webhook_event_processed(event_id):
         return
 
-    data = (event["data"]["object"] if isinstance(event, dict) else event.data.object) or {}
+    data = stripe_as_dict(event["data"]["object"] if isinstance(event, dict) else event.data.object)
 
     if event_type == "checkout.session.completed":
         order_id = (data.get("metadata") or {}).get("order_id")

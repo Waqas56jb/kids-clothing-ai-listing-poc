@@ -126,6 +126,12 @@ def pairwise_score(
     ocr_a: list[str],
     ocr_b: list[str],
 ) -> float:
+    # With no attributes on one side the category/color veto cannot fire and
+    # the score is CLIP similarity plus neutral 0.5s -- which merged a pair of
+    # leggings with a bodysuit at 0.877 embedding similarity. Two separate
+    # listings the seller can merge beat one wrong one.
+    if attr_a.unavailable or attr_b.unavailable:
+        return 0.0
     if is_vetoed(attr_a, attr_b):
         return 0.0
 
@@ -217,6 +223,9 @@ def _assemble_garment(
             status = MatchStatus.MEDIUM_CONFIDENCE
         else:
             status = MatchStatus.NEEDS_REVIEW
+
+    if any(member.unavailable for member in members):
+        status = MatchStatus.NEEDS_REVIEW
 
     return Garment(
         id=f"garment_{garment_index:03d}",

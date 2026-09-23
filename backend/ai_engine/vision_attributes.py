@@ -219,9 +219,9 @@ def extract_attributes(
     if not SETTINGS.openai_api_key:
         return Attributes(detection_id=detection_id, unavailable=True)
 
-    from openai import OpenAI
+    from ai_engine import openai_throttle
 
-    client = OpenAI(api_key=SETTINGS.openai_api_key)
+    client = openai_throttle.get_client()
     ocr_hint = "; ".join(ocr_texts) if ocr_texts else "(no text detected on label)"
 
     content: list[dict] = [
@@ -235,18 +235,24 @@ def extract_attributes(
         content.append({"type": "text", "text": "Image B (background removed, may be imperfect at edges):"})
         content.append(_image_content(cutout_crop))
 
-    response = client.chat.completions.create(
-        model=SETTINGS.openai_vision_model,
-        temperature=0,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": content},
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {"name": "garment_attributes", "strict": True, "schema": _ATTRIBUTE_SCHEMA},
-        },
-    )
+    def request():
+        return client.chat.completions.create(
+            model=SETTINGS.openai_vision_model,
+            temperature=0,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": content},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "garment_attributes", "strict": True, "schema": _ATTRIBUTE_SCHEMA},
+            },
+        )
+
+    estimate = SETTINGS.openai_vision_tokens_per_call
+    openai_throttle.VISION_BUDGET.acquire(estimate)
+    response = openai_throttle.call_with_rate_limit_retry(request, label=detection_id)
+    openai_throttle.VISION_BUDGET.settle(estimate, openai_throttle.usage_total_tokens(response))
 
     payload = json.loads(response.choices[0].message.content)
     confidence = AttributeConfidence(**payload["confidence"])

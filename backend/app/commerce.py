@@ -116,6 +116,20 @@ def start_checkout(user: dict[str, Any], shipping: dict[str, Any], payment_metho
     return {"order": order, "checkout_url": None, "provider": "test"}
 
 
+def stripe_as_dict(obj: Any) -> dict[str, Any]:
+    """stripe-python >= 15 returns typed resources (Account, checkout.Session,
+    Event.data.object) that are not dicts: `.get`, `in` and iteration all
+    raise. Normalise at the boundary so the rest of the code can stay plain."""
+    if obj is None:
+        return {}
+    if isinstance(obj, dict):
+        return obj
+    to_dict = getattr(obj, "to_dict", None)
+    if callable(to_dict):
+        return to_dict()
+    return {}
+
+
 def confirm_stripe(order: dict[str, Any], session_id: str | None) -> dict[str, Any]:
     if order.get("status") == "paid":
         return order
@@ -124,17 +138,17 @@ def confirm_stripe(order: dict[str, Any], session_id: str | None) -> dict[str, A
     import stripe
 
     stripe.api_key = STRIPE_SECRET_KEY
-    session = stripe.checkout.Session.retrieve(session_id or order.get("payment_ref") or "")
-    if session.get("metadata", {}).get("order_id") != order["id"]:
+    session = stripe_as_dict(stripe.checkout.Session.retrieve(session_id or order.get("payment_ref") or ""))
+    if (session.get("metadata") or {}).get("order_id") != order["id"]:
         raise CheckoutError("Betalningen hör inte till den här ordern.")
     if session.get("payment_status") != "paid":
         raise CheckoutError("Betalningen är inte genomförd än.")
     payment_intent_id = session.get("payment_intent")
-    if isinstance(payment_intent_id, dict):
-        payment_intent_id = payment_intent_id.get("id")
+    if not isinstance(payment_intent_id, str):
+        payment_intent_id = stripe_as_dict(payment_intent_id).get("id")
     if payment_intent_id:
         db.update_order(order["id"], stripe_payment_intent_id=payment_intent_id)
-    completed = complete_order(order["id"], payment_ref=payment_intent_id or session.id)
+    completed = complete_order(order["id"], payment_ref=payment_intent_id or session.get("id"))
 
     # The buyer's own return-URL request and Stripe's webhook both race to
     # confirm the same order -- whichever gets here first pays the sellers;

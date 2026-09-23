@@ -170,29 +170,33 @@ def generate_listing_copy(garments: list[dict[str, Any]]) -> dict[str, dict[str,
         return fallback
 
     try:
-        from openai import OpenAI
+        from ai_engine import openai_throttle
 
-        client = OpenAI(api_key=SETTINGS.openai_api_key)
+        client = openai_throttle.get_client()
         copy: dict[str, dict[str, str]] = dict(fallback)
         # Keep each request modest in size so a 30-photo batch never hits
         # output limits: ~15 garments per call.
         for start in range(0, len(garments), 15):
             chunk = garments[start : start + 15]
-            response = client.chat.completions.create(
-                model=SETTINGS.openai_text_model,
-                temperature=0.4,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": "Plagg (JSON):\n" + json.dumps([_attrs_for_prompt(g) for g in chunk], ensure_ascii=False),
+
+            def request(chunk=chunk):
+                return client.chat.completions.create(
+                    model=SETTINGS.openai_text_model,
+                    temperature=0.4,
+                    messages=[
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": "Plagg (JSON):\n" + json.dumps([_attrs_for_prompt(g) for g in chunk], ensure_ascii=False),
+                        },
+                    ],
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {"name": "listing_copy", "strict": True, "schema": _COPY_SCHEMA},
                     },
-                ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"name": "listing_copy", "strict": True, "schema": _COPY_SCHEMA},
-                },
-            )
+                )
+
+            response = openai_throttle.call_with_rate_limit_retry(request, label="listing_copy")
             payload = json.loads(response.choices[0].message.content)
             for item in payload.get("items") or []:
                 gid = item.get("id")
