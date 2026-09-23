@@ -21,6 +21,7 @@ from ai_engine.pipeline import (
     _attach_images,
     _downgrade_if_ai_flagged_incomplete,
     _drop_duplicate_detections,
+    _mask_inside_box_fraction,
     _mask_overlap_fraction,
     _overlapping_ids,
 )
@@ -298,3 +299,79 @@ def test_cover_selection_prefers_an_untouched_cutout_over_an_ai_flagged_one():
     }
     garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
     assert garment.display_image == "cutouts/d1.png"
+
+
+# ---------------------------------------------------------------------------
+# Garment fragments: a limb the parent's own mask missed
+# ---------------------------------------------------------------------------
+# Measured on the client's real batch (job 41bb29a0f748, photo 01_2972): a
+# brown romper's sleeve was boxed separately, SAM2 left it out of the
+# romper's mask, and it shipped as its own "Strumpbyxor" listing. The
+# numbers below mirror that pair: mask fully inside the parent's box, tiny
+# relative area, and only a sliver of mask-to-mask contact.
+
+
+def test_a_limb_left_out_of_the_parent_mask_is_dropped_as_a_fragment():
+    parent_mask = _mask(200, 200)
+    parent_mask[40:180, 20:180] = True          # the romper's body
+    fragment_mask = _mask(200, 200)
+    fragment_mask[20:45, 30:50] = True          # the sleeve, only touching the body's top edge
+    detections = [
+        _det("parent", "img", confidence=0.7, bbox=BBox(x1=20, y1=15, x2=180, y2=180)),
+        _det("fragment", "img", confidence=0.95, bbox=BBox(x1=28, y1=18, x2=52, y2=48)),
+    ]
+    kept, notes = _drop_duplicate_detections(
+        detections, {"parent": parent_mask, "fragment": fragment_mask}, {"parent": False, "fragment": False}
+    )
+    # Dropped despite the detector being *more* confident about the sleeve.
+    assert [d.id for d in kept] == ["parent"]
+    assert notes and "dubblett" in notes[0].lower()
+
+
+def test_a_separate_small_garment_lying_inside_a_bigger_ones_box_is_kept():
+    # A sock resting on a spread-out blanket: its mask is entirely within
+    # the blanket's box, but the two share no fabric, so it is a real
+    # second garment and must survive.
+    blanket = _mask(200, 200)
+    blanket[10:190, 10:190] = True
+    blanket[80:110, 80:110] = False             # the sock's own pixels are not the blanket's
+    sock = _mask(200, 200)
+    sock[80:110, 80:110] = True
+    detections = [
+        _det("blanket", "img", bbox=BBox(x1=10, y1=10, x2=190, y2=190)),
+        _det("sock", "img", bbox=BBox(x1=80, y1=80, x2=110, y2=110)),
+    ]
+    kept, notes = _drop_duplicate_detections(
+        detections, {"blanket": blanket, "sock": sock}, {"blanket": False, "sock": False}
+    )
+    assert {d.id for d in kept} == {"blanket", "sock"}
+    assert notes == []
+
+
+def test_a_neighbouring_garment_only_partly_inside_the_box_is_kept():
+    # The closest real pair measured on the client's photos sat at 0.44 of
+    # the smaller mask inside the bigger box -- well under the threshold.
+    big = _mask(200, 200)
+    big[0:100, 0:200] = True
+    neighbour = _mask(200, 200)
+    neighbour[80:140, 0:100] = True             # straddles the boundary, ~1/3 inside
+    detections = [
+        _det("big", "img", bbox=BBox(x1=0, y1=0, x2=200, y2=100)),
+        _det("neighbour", "img", bbox=BBox(x1=0, y1=80, x2=100, y2=140)),
+    ]
+    kept, _ = _drop_duplicate_detections(
+        detections, {"big": big, "neighbour": neighbour}, {"big": False, "neighbour": False}
+    )
+    assert {d.id for d in kept} == {"big", "neighbour"}
+
+
+def test_mask_inside_box_fraction_is_measured_against_the_box_not_the_mask():
+    mask = _mask(100, 100)
+    mask[10:20, 10:20] = True
+    fully_inside = _det("p", "img", bbox=BBox(x1=0, y1=0, x2=50, y2=50))
+    half_inside = _det("p", "img", bbox=BBox(x1=0, y1=0, x2=50, y2=15))
+    outside = _det("p", "img", bbox=BBox(x1=60, y1=60, x2=90, y2=90))
+    assert _mask_inside_box_fraction(mask, fully_inside) == 1.0
+    assert _mask_inside_box_fraction(mask, half_inside) == 0.5
+    assert _mask_inside_box_fraction(mask, outside) == 0.0
+    assert _mask_inside_box_fraction(_mask(100, 100), fully_inside) == 0.0

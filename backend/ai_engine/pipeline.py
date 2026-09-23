@@ -58,6 +58,26 @@ _MASK_OVERLAP_FRACTION = 0.06
 # trusted to make this call, only the geometry could.
 _DUPLICATE_OVERLAP_FRACTION = 0.9
 
+# The mask-to-mask test above only catches a duplicate when the parent's own
+# mask actually covers the child. It misses the opposite, equally common
+# case: the detector boxes a *limb* of one garment (a sleeve, a trouser leg
+# folded away from the body) that SAM2 left out of the parent's mask, so the
+# two masks barely touch and the fragment ships as its own listing -- a
+# romper's sleeve became a separate "Strumpbyxor" (tights) listing in the
+# client's own batch, next to the romper it was cut from. Measured on both
+# of that batch's real photos: every genuine duplicate pair had 100% of the
+# smaller mask inside the bigger detection's *box*, while the closest pair
+# of genuinely different garments reached only 0.44, and the fragment's mask
+# was 1.6% of its parent's. The mask-touch floor is what separates "a piece
+# of that garment" from "a separate small item that happens to lie inside
+# its rectangle" (a sock resting on a spread-out blanket): a real neighbour
+# shares no mask pixels at all (0.000-0.005 across both photos), while the
+# fragment shared 0.102. All three conditions must hold, because dropping a
+# real garment costs the seller an item they could have sold.
+_FRAGMENT_INSIDE_BOX_FRACTION = 0.9
+_FRAGMENT_MAX_AREA_RATIO = 0.5
+_FRAGMENT_MIN_MASK_TOUCH = 0.02
+
 # Reasons a detection's own cutout got vetoed that mean nothing in this
 # garment's photos can be trusted at face value -- either from another
 # garment sharing the frame, or from the vision model's own judgment that
@@ -88,6 +108,19 @@ def _mask_overlap_fraction(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
         return 0.0
     intersection = int(np.logical_and(mask_a, mask_b).sum())
     return intersection / smaller
+
+
+def _mask_inside_box_fraction(mask: np.ndarray, det: Detection) -> float:
+    """Fraction of `mask`'s own pixels that fall inside `det`'s bounding box.
+
+    Deliberately compares against the *box* rather than the other mask: the
+    whole point is to catch a garment part that the parent's mask left out."""
+    total = int(mask.sum())
+    if total == 0:
+        return 0.0
+    x1, y1, x2, y2 = (int(v) for v in det.bbox.as_xyxy())
+    inside = int(mask[max(0, y1):max(0, y2), max(0, x1):max(0, x2)].sum())
+    return inside / total
 
 
 def _too_small(det: Detection, image: Image.Image) -> bool:
@@ -122,7 +155,8 @@ def _drop_duplicate_detections(
                 continue
             if fallback_by_id.get(a.id) or fallback_by_id.get(b.id):
                 continue  # no real mask to compare for at least one side
-            if _mask_overlap_fraction(masks_by_id[a.id], masks_by_id[b.id]) >= _DUPLICATE_OVERLAP_FRACTION:
+            touch = _mask_overlap_fraction(masks_by_id[a.id], masks_by_id[b.id])
+            if touch >= _DUPLICATE_OVERLAP_FRACTION:
                 # Keep whichever the detector itself was more confident
                 # about; a tie-break on box area favours the more complete
                 # view over a tight sub-crop of the same garment.
@@ -132,6 +166,22 @@ def _drop_duplicate_detections(
 
                 loser = min((a, b), key=lambda d: (d.detector_confidence, _box_area(d)))
                 dropped.add(loser.id)
+                continue
+
+            fragment, parent = sorted((a, b), key=lambda d: int(masks_by_id[d.id].sum()))
+            parent_area = int(masks_by_id[parent.id].sum())
+            if not parent_area:
+                continue
+            if (
+                int(masks_by_id[fragment.id].sum()) / parent_area <= _FRAGMENT_MAX_AREA_RATIO
+                and _mask_inside_box_fraction(masks_by_id[fragment.id], parent) >= _FRAGMENT_INSIDE_BOX_FRACTION
+                and touch >= _FRAGMENT_MIN_MASK_TOUCH
+            ):
+                # Always the fragment, never the parent: the detector is
+                # sometimes more confident about a clean sleeve than about
+                # the whole rumpled garment, and dropping the parent would
+                # leave the seller with a listing of one limb.
+                dropped.add(fragment.id)
 
     if not dropped:
         return detections, []
