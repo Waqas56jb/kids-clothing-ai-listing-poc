@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, HandCoins, Heart, MessageCircle, ShoppingBag, ShoppingCart, Store, Trash2 } from 'lucide-react'
+import { ArrowLeft, HandCoins, Heart, Maximize2, MessageCircle, ShoppingBag, ShoppingCart, Store, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import {
   addToCart,
@@ -17,6 +17,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { refreshCounts } from '../../lib/useCounts'
 import { categoryLabel, conditionLabel, formatSek, genderLabel, timeAgoSv } from '../../lib/sv'
 import Button from '../ui/Button'
+import ImageLightbox from '../ui/ImageLightbox'
 import Modal from '../ui/Modal'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
@@ -32,6 +33,7 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState(null)
   const [error, setError] = useState(null)
   const [activeImage, setActiveImage] = useState(0)
+  const [viewerOpen, setViewerOpen] = useState(false)
   const [offerOpen, setOfferOpen] = useState(false)
   const [offerAmount, setOfferAmount] = useState('')
   const [offerMessage, setOfferMessage] = useState('')
@@ -186,7 +188,17 @@ export default function ListingDetailPage() {
             className="aspect-[4/5] w-full overflow-hidden rounded-[2rem] bg-sand shadow-elevated"
           >
             {images[activeImage] ? (
-              <img src={storageUrl(images[activeImage])} alt={listing.title} className="h-full w-full object-contain p-4" />
+              <button
+                type="button"
+                onClick={() => setViewerOpen(true)}
+                aria-label="Visa bilden i stort format"
+                className="group relative block h-full w-full cursor-zoom-in"
+              >
+                <img src={storageUrl(images[activeImage])} alt={listing.title} className="h-full w-full object-contain p-4" />
+                <span className="pointer-events-none absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-soft transition group-hover:scale-110">
+                  <Maximize2 className="h-4 w-4" />
+                </span>
+              </button>
             ) : (
               <div className="flex h-full items-center justify-center text-slate-400">Ingen bild</div>
             )}
@@ -219,6 +231,14 @@ export default function ListingDetailPage() {
             </div>
           )}
           {canManage && images.length <= 1 && <p className="mt-2 text-xs text-slate-400">En annons måste ha minst en bild.</p>}
+          <ImageLightbox
+            images={images.map((path) => storageUrl(path))}
+            index={Math.min(activeImage, Math.max(0, images.length - 1))}
+            onIndexChange={setActiveImage}
+            open={viewerOpen}
+            onClose={() => setViewerOpen(false)}
+            alt={listing.title}
+          />
         </div>
 
         <div className="min-w-0">

@@ -19,6 +19,7 @@ import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Skeleton from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
+import ImageLightbox from '../ui/ImageLightbox'
 import PricingCard from '../pricing/PricingCard'
 
 const FIELD_LABELS = {
@@ -44,6 +45,7 @@ export default function GarmentDetailPage() {
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
   const [showOriginal, setShowOriginal] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -226,17 +228,22 @@ export default function GarmentDetailPage() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {garment.detection_ids.map((id) => {
+            {garment.detection_ids.map((id, photoIndex) => {
               const variant = detectionVariant(garment, id)
               return (
                 <div key={id} className="group relative overflow-hidden rounded-2xl bg-white shadow-soft">
-                  <div className="aspect-square">
+                  <button
+                    type="button"
+                    onClick={() => setViewerIndex(photoIndex)}
+                    aria-label="Visa bilden i stort format"
+                    className="block aspect-square w-full cursor-zoom-in"
+                  >
                     <img
                       src={fileUrl(jobId, detectionImagePath(garment, id, { original: showOriginal }))}
                       alt=""
                       className="h-full w-full object-contain p-2"
                     />
-                  </div>
+                  </button>
                   {garment.detection_ids.length > 1 && (
                     <button
                       type="button"
@@ -257,6 +264,14 @@ export default function GarmentDetailPage() {
               )
             })}
           </div>
+          <ImageLightbox
+            images={garment.detection_ids.map((id) => fileUrl(jobId, detectionImagePath(garment, id, { original: showOriginal })))}
+            index={viewerIndex ?? 0}
+            onIndexChange={setViewerIndex}
+            open={viewerIndex !== null}
+            onClose={() => setViewerIndex(null)}
+            alt={categoryLabel(garment.category)}
+          />
           <p className="mt-2 text-xs text-slate-400">
             {garment.images.length} {plural(garment.images.length, 'bild', 'bilder')} matchade till det här plagget.
             Bilderna är dina egna foton – AI:n ändrar dem aldrig. Håll muspekaren över en bild för att ta bort den om den
