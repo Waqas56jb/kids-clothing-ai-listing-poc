@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Image as ImageIcon, Sparkles, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Crop, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteGarmentImage, fileUrl, getJob, patchWorkspace } from '../../api'
 import { detectionImagePath, detectionVariant, toneForCondition, toneForMatch } from '../../lib/garment'
@@ -29,17 +29,6 @@ const FIELD_LABELS = {
   condition: 'Skick',
   gender: 'Passar',
   defects: 'Anmärkning',
-}
-
-const REJECT_REASON_SV = {
-  segmentation_failed: 'AI:n kunde inte frilägga plagget rent',
-  overlaps_other_garment: 'plagget överlappar ett annat plagg',
-  mask_too_small: 'frilägningen missade för mycket av plagget',
-  mask_is_whole_box: 'frilägningen skilde inte plagget från bakgrunden',
-  mask_has_holes: 'frilägningen fick hål i plagget',
-  mask_cut_off_garment: 'frilägningen skar av delar av plagget',
-  empty_mask: 'AI:n kunde inte frilägga plagget',
-  ai_flagged_incomplete: 'AI:n bedömde att frilägningen inte visade hela plagget rent',
 }
 
 const inputClass =
@@ -223,7 +212,7 @@ export default function GarmentDetailPage() {
         <div>
           <div className="mb-3 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {showOriginal ? 'Originalfoton' : 'AI-bilder'}
+              {showOriginal ? 'Hela fotona' : 'Dina foton'}
             </p>
             {anyOriginal && (
               <button
@@ -231,15 +220,14 @@ export default function GarmentDetailPage() {
                 onClick={() => setShowOriginal((v) => !v)}
                 className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
               >
-                {showOriginal ? <Sparkles className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
-                {showOriginal ? 'Visa AI-bilder' : 'Visa originalfoton'}
+                {showOriginal ? <Crop className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                {showOriginal ? 'Visa plagget' : 'Visa hela fotona'}
               </button>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {garment.detection_ids.map((id) => {
               const variant = detectionVariant(garment, id)
-              const reason = variant?.cutout_rejected_reason
               return (
                 <div key={id} className="group relative overflow-hidden rounded-2xl bg-white shadow-soft">
                   <div className="aspect-square">
@@ -260,11 +248,9 @@ export default function GarmentDetailPage() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
-                  {!showOriginal && variant && (
+                  {!showOriginal && variant?.occluded && (
                     <p className="border-t border-slate-100 px-2 py-1.5 text-[11px] text-slate-400">
-                      {variant.display_kind === 'cutout'
-                        ? 'Frilagd av AI'
-                        : `Ditt originalfoto${reason ? ` – ${REJECT_REASON_SV[reason] ?? 'AI-bilden höll inte måttet'}` : ''}`}
+                      Delvis dolt av ett annat plagg
                     </p>
                   )}
                 </div>
@@ -273,8 +259,8 @@ export default function GarmentDetailPage() {
           </div>
           <p className="mt-2 text-xs text-slate-400">
             {garment.images.length} {plural(garment.images.length, 'bild', 'bilder')} matchade till det här plagget.
-            Originalfotot används alltid när AI-frilägningen inte blir ren. Håll muspekaren över en bild för att ta bort
-            den om den inte hör hit.
+            Bilderna är dina egna foton – AI:n ändrar dem aldrig. Håll muspekaren över en bild för att ta bort den om den
+            inte hör hit.
           </p>
         </div>
 

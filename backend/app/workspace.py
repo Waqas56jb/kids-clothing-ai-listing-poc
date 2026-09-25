@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ai_engine.listing_copy import template_description, template_title
-from ai_engine.schemas import PipelineResult
+from ai_engine.schemas import PipelineResult, crop_path_for
 
 from app import db
 
@@ -280,7 +280,8 @@ def _drop_images(garment: dict[str, Any], gone: set[str]) -> None:
     garment["image_variants"] = variants
     if variants:
         garment["images"] = sorted({v["image_id"] for v in variants})
-        cover = next((v for v in variants if v.get("display_kind") == "cutout"), variants[0])
+        # Keep the chosen cover unless it was the image just removed.
+        cover = next((v for v in variants if v.get("display") == garment.get("display_image")), variants[0])
         garment["display_image"] = cover.get("display")
         garment["original_image"] = cover.get("original")
     garment["removed_detection_ids"] = sorted(gone)
@@ -358,22 +359,25 @@ def list_all_pricing() -> list[dict[str, Any]]:
 
 
 def _garment_image_paths(garment: dict[str, Any]) -> tuple[list[str], str | None]:
-    """All distinct image paths for a garment (cover first), never inventing
-    a cutout that didn't pass the quality gate."""
+    """All distinct image paths for a listing, cover first: the seller's own
+    photo cropped to the garment, then the full photo it came from. Never an
+    AI-edited image (legacy cutout paths are mapped back to their crop)."""
     paths: list[str] = []
-    cover = garment.get("display_image")
-    if cover:
-        paths.append(cover)
+
+    def add(path: str | None) -> None:
+        path = crop_path_for(path)
+        if path and path not in paths:
+            paths.append(path)
+
+    add(garment.get("display_image"))
     for variant in garment.get("image_variants") or []:
-        for key in ("display", "crop", "original"):
-            path = variant.get(key)
-            if path and path not in paths:
-                paths.append(path)
+        add(variant.get("crop") or variant.get("display"))
+    for variant in garment.get("image_variants") or []:
+        add(variant.get("original"))
     if not paths:
         for det_id in garment.get("detection_ids") or []:
             paths.append(f"debug/masks/{det_id}_masked.png")
-        cover = paths[0] if paths else None
-    return paths, cover
+    return paths, (paths[0] if paths else None)
 
 
 def publish_garments(

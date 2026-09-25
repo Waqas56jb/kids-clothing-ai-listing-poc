@@ -3,10 +3,12 @@
 Two layers, both needed:
 
 * `TokenBudget` -- a sliding one-minute token window shared by every vision
-  call in the process. A 20-garment batch at ~3k tokens per call needs ~60k
-  tokens, twice the 30k tokens-per-minute the account is on, and the old
-  behaviour was to fire them all at once and let half of them 429. Pacing
-  the calls up front is what actually keeps a batch inside the limit.
+  call in the process. A 20-garment batch needs more tokens than the 30k
+  tokens-per-minute the account started on, and the old behaviour was to
+  fire them all at once and let half of them 429. Pacing the calls up front
+  is what actually keeps a batch inside the limit; the limit itself is read
+  from OpenAI's response headers, so a higher account tier is used as soon
+  as OpenAI grants it.
 * `call_with_rate_limit_retry` -- for the calls that still get a 429 (the
   estimate is approximate; other traffic shares the limit), wait exactly
   as long as OpenAI asks ("Please try again in 4.024s") and retry, rather
@@ -33,17 +35,36 @@ _RETRY_IN = re.compile(r"try again in\s*(\d+(?:\.\d+)?)\s*(ms|s)\b", re.IGNORECA
 
 
 class TokenBudget:
+    """Sliding one-minute token window. Each call reserves its expected size
+    up front and is corrected to what it really used once it returns, so the
+    window tracks real usage in both directions -- reserving 3k for a call
+    that used 1.7k would otherwise waste ~40% of the minute's budget."""
+
+    # Leave a little headroom under the published limit: the listing-copy
+    # call and any other traffic on the org share it.
+    _HEADROOM = 0.95
+
     def __init__(
         self,
         tokens_per_minute: int,
+        initial_estimate: int = 3000,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._limit = max(1, int(tokens_per_minute))
+        self._estimate = max(1.0, float(initial_estimate))
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.Lock()
-        self._window: deque[tuple[float, int]] = deque()
+        self._window: deque[list] = deque()  # [timestamp, tokens]
+
+    @property
+    def limit(self) -> int:
+        return self._limit
+
+    @property
+    def estimate(self) -> int:
+        return int(round(self._estimate))
 
     def _prune(self, now: float) -> None:
         while self._window and self._window[0][0] <= now - 60.0:
@@ -52,32 +73,43 @@ class TokenBudget:
     def used(self) -> int:
         with self._lock:
             self._prune(self._clock())
-            return sum(tokens for _, tokens in self._window)
+            return sum(entry[1] for entry in self._window)
 
-    def acquire(self, estimate: int) -> None:
-        """Block until `estimate` tokens fit in the current minute, then
-        reserve them. A single call larger than the whole budget is let
-        through alone rather than waiting forever."""
-        estimate = max(0, int(estimate))
+    def observe_limit(self, header_value: str | int | None) -> None:
+        """Adopt the org's real limit from OpenAI's `x-ratelimit-limit-tokens`."""
+        try:
+            limit = int(header_value) if header_value is not None else 0
+        except (TypeError, ValueError):
+            return
+        if limit > 0:
+            with self._lock:
+                self._limit = max(1, int(limit * self._HEADROOM))
+
+    def acquire(self, estimate: int | None = None) -> list:
+        """Block until the call fits in the current minute, then reserve it.
+        A single call larger than the whole budget is let through alone
+        rather than waiting forever. Returns the reservation for `settle`."""
         while True:
             with self._lock:
+                size = int(round(self._estimate)) if estimate is None else max(0, int(estimate))
                 now = self._clock()
                 self._prune(now)
-                used = sum(tokens for _, tokens in self._window)
-                if used + estimate <= self._limit or not self._window:
-                    self._window.append((now, estimate))
-                    return
+                used = sum(entry[1] for entry in self._window)
+                if used + size <= self._limit or not self._window:
+                    entry = [now, size]
+                    self._window.append(entry)
+                    return entry
                 wait = self._window[0][0] + 60.0 - now
             self._sleep(max(wait, 0.05))
 
-    def settle(self, estimate: int, actual: int | None) -> None:
-        """Charge the difference when a call used more than estimated, so
-        the window reflects real usage. Using less is left as-is (a little
-        conservative beats another 429)."""
-        if actual is None or actual <= estimate:
+    def settle(self, reservation: list, actual: int | None) -> None:
+        """Replace the reservation with what the call really used, and learn
+        the typical call size for the next reservation."""
+        if actual is None or actual <= 0:
             return
         with self._lock:
-            self._window.append((self._clock(), int(actual - estimate)))
+            reservation[1] = int(actual)
+            self._estimate = 0.7 * self._estimate + 0.3 * float(actual)
 
 
 def retry_after_seconds(exc: BaseException) -> float | None:
@@ -138,7 +170,7 @@ def get_client() -> OpenAI:
         return _client
 
 
-VISION_BUDGET = TokenBudget(SETTINGS.openai_vision_tpm)
+VISION_BUDGET = TokenBudget(SETTINGS.openai_vision_tpm, SETTINGS.openai_vision_tokens_per_call)
 
 
 def usage_total_tokens(response: Any) -> int | None:

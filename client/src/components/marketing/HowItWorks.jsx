@@ -12,13 +12,13 @@ const STEPS = [
   {
     icon: ScanSearch,
     title: 'AI:n hittar och läser av',
-    copy: 'Varje plagg hittas, friläggs och läses av: kategori, märke, storlek, färg och skick – med en säkerhetsnivå på varje uppgift. Plaggen dyker upp efter hand som de blir klara.',
+    copy: 'Varje plagg hittas och läses av: kategori, märke, storlek, färg och skick – med en säkerhetsnivå på varje uppgift. Plaggen dyker upp efter hand som de blir klara.',
     image: LANDING_IMAGES.flatlay,
   },
   {
     icon: CheckCircle2,
     title: 'Du granskar – ärligt',
-    copy: 'Osäkra bedömningar och möjligt slitage flaggas för en mänsklig titt – aldrig tyst antaget eller dolt. Blir AI-bilden inte ren visas ditt originalfoto i stället.',
+    copy: 'Osäkra bedömningar och möjligt slitage flaggas för en mänsklig titt – aldrig tyst antaget eller dolt. Annonsbilderna är alltid dina egna foton – AI:n ändrar dem aldrig.',
     image: LANDING_IMAGES.soft,
   },
   {

@@ -91,13 +91,12 @@ class MaskQuality:
 
 
 def assess_mask(mask: np.ndarray, bbox: tuple[int, int, int, int]) -> MaskQuality:
-    """Decide whether a segmentation mask is good enough to show as a cutout.
-
-    A bad cutout (garment chopped in half, a big black-looking hole, or a
-    mask that grabbed almost nothing / the whole rectangle) is worse for the
-    seller than simply showing their own photo, so anything that fails these
-    checks is reported with a reason and the caller falls back to the
-    original crop.
+    """Decide whether a segmentation mask describes the garment well enough to
+    rely on. Masks are internal only (the matcher's embedding and choosing
+    the clearest photo as the cover) -- product images are always the
+    seller's own photo. A mask that chopped the garment in half, has a big
+    hole, or grabbed almost nothing / the whole rectangle is reported with a
+    reason, and the caller falls back to the plain crop.
     """
     x1, y1, x2, y2 = bbox
     box = mask[y1:y2, x1:x2].astype(np.uint8)
@@ -132,7 +131,7 @@ def assess_mask(mask: np.ndarray, bbox: tuple[int, int, int, int]) -> MaskQualit
 
 
 def refine_mask_edges(mask: np.ndarray, bbox: tuple[int, int, int, int]) -> np.ndarray:
-    """Slightly grow the mask so cutout edges never eat into the fabric.
+    """Slightly grow the mask so its edge never eats into the fabric.
 
     SAM2 boundaries tend to sit a pixel or two *inside* the true edge, which
     reads as a thin shaved-off outline on light garments. A dilation scaled
@@ -146,7 +145,8 @@ def refine_mask_edges(mask: np.ndarray, bbox: tuple[int, int, int, int]) -> np.n
 
 def apply_mask(image: Image.Image, mask: np.ndarray, bbox: tuple[float, float, float, float]) -> Image.Image:
     """Return a bbox crop with the background outside the mask painted white,
-    with a soft (feathered) edge so the cutout does not look jagged.
+    with a soft (feathered) edge. Used in memory for the matcher's embedding
+    only; never saved or shown.
 
     `mask` is a full-image-sized boolean/0-1 array. Falls back to a plain
     bbox crop if the mask doesn't cover the box (e.g. segmentation failed).

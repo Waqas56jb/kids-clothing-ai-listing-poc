@@ -32,9 +32,9 @@ export function needsAnyReview(garment) {
 
 /**
  * Path (relative to the job's file root) of the image to show for a
- * garment. Prefers the AI cutout only when it passed the quality gate;
- * otherwise the untouched crop from the seller's own photo. Old results
- * without image variants fall back to the legacy mask path.
+ * garment: always the seller's own photo cropped to the garment, never an
+ * AI-edited image. Old results without image variants fall back to the
+ * legacy mask path.
  */
 export function garmentImagePath(garment, { original = false } = {}) {
   if (original && garment.original_image) return garment.original_image

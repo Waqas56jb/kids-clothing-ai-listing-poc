@@ -104,7 +104,7 @@ export default function UploadPage() {
       <h1 className="mt-4 text-center font-display text-3xl font-bold text-slate-800 sm:text-4xl">Ny uppladdning</h1>
       <p className="mt-2 max-w-lg text-center text-sm text-slate-500 sm:text-base">
         Ladda upp 20–30 bilder på kläderna åt gången (max {MAX_PHOTOS}). Dra för att ändra ordning, håll
-        muspekaren över en bild för att ta bort den – sedan hittar AI:n, friläger och beskriver varje plagg.
+        muspekaren över en bild för att ta bort den – sedan hittar AI:n och beskriver varje plagg.
       </p>
 
       <div

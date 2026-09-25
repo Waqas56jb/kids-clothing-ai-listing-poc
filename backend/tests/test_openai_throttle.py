@@ -46,16 +46,46 @@ def test_budget_never_deadlocks_on_a_call_bigger_than_the_limit():
     assert clock.sleeps == []
 
 
-def test_settle_charges_only_the_overrun():
+def test_settle_replaces_the_reservation_with_real_usage_both_ways():
     clock = FakeClock()
     budget = TokenBudget(30000, clock=clock, sleep=clock.sleep)
-    budget.acquire(3000)
-    budget.settle(3000, 2500)
-    assert budget.used() == 3000
-    budget.settle(3000, 3400)
-    assert budget.used() == 3400
-    budget.settle(3000, None)
-    assert budget.used() == 3400
+    r1 = budget.acquire(3000)
+    budget.settle(r1, 1700)          # used less: the difference is freed
+    assert budget.used() == 1700
+    r2 = budget.acquire(3000)
+    budget.settle(r2, 3400)          # used more: charged in full
+    assert budget.used() == 1700 + 3400
+    r3 = budget.acquire(3000)
+    budget.settle(r3, None)          # unknown usage: reservation stands
+    assert budget.used() == 1700 + 3400 + 3000
+
+
+def test_under_used_reservations_let_more_calls_into_the_same_minute():
+    # 30k TPM at ~1.7k real tokens per call fits 17 calls a minute, not the
+    # 10 a fixed 3k reservation would allow.
+    clock = FakeClock()
+    budget = TokenBudget(30000, initial_estimate=3000, clock=clock, sleep=clock.sleep)
+    for _ in range(17):
+        budget.settle(budget.acquire(), 1700)
+    assert clock.sleeps == []
+
+
+def test_budget_learns_the_typical_call_size():
+    clock = FakeClock()
+    budget = TokenBudget(30000, initial_estimate=3000, clock=clock, sleep=clock.sleep)
+    for _ in range(20):
+        budget.settle(budget.acquire(), 1700)
+    assert 1650 <= budget.estimate <= 1800
+
+
+def test_observed_rate_limit_header_replaces_the_configured_limit():
+    budget = TokenBudget(30000)
+    budget.observe_limit("450000")   # the account moved up an OpenAI tier
+    assert budget.limit == int(450000 * 0.95)
+    budget.observe_limit(None)
+    budget.observe_limit("not-a-number")
+    budget.observe_limit("0")
+    assert budget.limit == int(450000 * 0.95)
 
 
 def test_retry_after_parses_openai_message_and_headers():

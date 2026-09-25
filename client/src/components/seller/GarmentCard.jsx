@@ -22,7 +22,6 @@ function Field({ label, value }) {
 
 export default function GarmentCard({ garment, jobId, index = 0 }) {
   const imageSrc = fileUrl(jobId, garmentImagePath(garment))
-  const isOriginal = garment.image_variants?.length ? garment.image_variants.every((v) => v.display_kind !== 'cutout') : false
   const [pricing, setPricing] = useState(null)
 
   useEffect(() => {
@@ -55,11 +54,6 @@ export default function GarmentCard({ garment, jobId, index = 0 }) {
           {garment.images.length > 1 && (
             <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-slate-900/60 px-2 py-0.5 text-[11px] font-medium text-white">
               <ImageIcon className="h-3 w-3" /> {garment.images.length}
-            </span>
-          )}
-          {isOriginal && (
-            <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-soft">
-              Originalfoto
             </span>
           )}
         </div>

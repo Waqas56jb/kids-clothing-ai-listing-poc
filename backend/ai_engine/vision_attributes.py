@@ -17,7 +17,7 @@ _ATTRIBUTE_SCHEMA = {
             "type": "string",
             "enum": CATEGORY_KEYS,
             "description": (
-                "The garment type, chosen from the allowed keys. If image A does not "
+                "The garment type, chosen from the allowed keys. If the image does not "
                 "actually show a piece of clothing (e.g. it's just a hang tag, label, or "
                 "empty background that the detector mistakenly boxed), use "
                 "'not_a_garment' and give category confidence 0 -- never invent a "
@@ -58,22 +58,6 @@ _ATTRIBUTE_SCHEMA = {
             "type": ["string", "null"],
             "enum": ["boys", "girls", "unisex", None],
         },
-        "cutout_looks_complete": {
-            "type": ["boolean", "null"],
-            "description": (
-                "Only meaningful when Image B was provided; null if it was not. true "
-                "only if Image B genuinely shows the WHOLE garment cleanly -- the same "
-                "overall shape and extent as Image A, with no chunk of the garment "
-                "missing or cut off, no ragged/torn-looking edge that Image A does not "
-                "actually show as damaged, and no stray background or foreign object "
-                "bled into it. false if any of that is wrong: part of the garment "
-                "visible in Image A is missing from Image B, Image B's silhouette looks "
-                "torn/distorted/incomplete compared to the real garment in Image A, or "
-                "Image B includes something that isn't this garment. When in doubt, "
-                "answer false -- a real photo of the garment is always better than a "
-                "questionable cutout."
-            ),
-        },
         "confidence": {
             "type": "object",
             "properties": {
@@ -89,20 +73,16 @@ _ATTRIBUTE_SCHEMA = {
         },
     },
     "required": [
-        "category", "brand", "size", "color", "condition", "gender", "defects",
-        "cutout_looks_complete", "confidence",
+        "category", "brand", "size", "color", "condition", "gender", "defects", "confidence",
     ],
     "additionalProperties": False,
 }
 
 _SYSTEM_PROMPT = (
     "You are a product attribute extractor for Miniplagg, a Swedish secondhand "
-    "children's clothing marketplace. You are shown two images of the same detected "
-    "item, cropped from the same seller photo:\n"
-    "  - Image A: the crop region from the original, unedited photo (primary evidence).\n"
-    "  - Image B: the same crop with the background whited out by our segmentation "
-    "step, when available -- it may be imperfect at the edges.\n"
-    "Base category/brand/size/color/gender on whichever image shows it more clearly. "
+    "children's clothing marketplace. You are shown one detected item, cropped from "
+    "the seller's own unedited photo. Neighbouring garments may be partly visible "
+    "around the edges -- describe only the item the crop is centred on. "
     "Report every field with an honest confidence score from 0 to 1 based only on "
     "visual/text evidence actually present.\n\n"
     "Language: write `color` and `defects` in natural Swedish. Keep `brand` and `size` "
@@ -141,13 +121,6 @@ _SYSTEM_PROMPT = (
     "design detail: only call it a defect if you're confident a repair would "
     "actually be needed. Leave `defects` null and `condition` 'good' rather than "
     "guess -- an uncertain damage claim is worse than no claim at all.\n"
-    "- Image B's cutout edge is frequently ragged or notched -- around ruffles, "
-    "sleeves, collars, or wherever a tag/hanger/clip sat in the original photo -- "
-    "purely because automatic background removal is imperfect there, not because "
-    "the fabric is torn. Treat a gap or notch as real damage ONLY if image A (the "
-    "original photo) also shows an actual hole, tear, or irregularity in the "
-    "fabric at that same spot. If image A shows continuous, intact fabric there, "
-    "it was a cutout artifact -- do not report it in `defects`.\n"
     "- Ruffles, frills, pleats, and gathered fabric naturally cast small shadows "
     "and gaps between folds in a normal photo -- this is fabric texture, not "
     "damage. Only call it a hole/tear if you can see the garment's base material "
@@ -157,18 +130,6 @@ _SYSTEM_PROMPT = (
     "- If the crop doesn't actually show a piece of clothing (e.g. it's just a "
     "hang tag, label, or stray background), set `category` to 'not_a_garment' "
     "with confidence 0 for every field rather than guessing a garment type.\n"
-    "- `cutout_looks_complete` is a separate judgment from `defects`, and the two "
-    "often disagree on purpose: a cutout artifact (a ragged edge from imperfect "
-    "background removal, not real fabric damage) correctly stays out of `defects`, "
-    "but it still means Image B is not a good, presentable photo of the garment -- "
-    "set `cutout_looks_complete` to false in exactly that case. Compare the two "
-    "images directly: if Image B is missing an arm, leg, collar, hem, or other "
-    "chunk that Image A clearly shows, if its outline looks torn, patchy, or "
-    "eaten-into rather than following the garment's real edge, or if a visible "
-    "patch of background, another object, or a different garment shows up inside "
-    "Image B's silhouette, that is false, regardless of how confident you are "
-    "about the other fields. true is reserved for a cutout you would be "
-    "comfortable showing a buyer as the product photo exactly as it is."
 )
 
 
@@ -211,7 +172,6 @@ _OVERLAP_HINT = (
 
 def extract_attributes(
     original_crop: Image.Image,
-    cutout_crop: Image.Image | None,
     ocr_texts: list[str],
     detection_id: str,
     overlaps_other_garment: bool = False,
@@ -229,14 +189,13 @@ def extract_attributes(
     ]
     if overlaps_other_garment:
         content.append({"type": "text", "text": _OVERLAP_HINT})
-    content.append({"type": "text", "text": "Image A (original photo, crop region):"})
     content.append(_image_content(original_crop))
-    if cutout_crop is not None:
-        content.append({"type": "text", "text": "Image B (background removed, may be imperfect at edges):"})
-        content.append(_image_content(cutout_crop))
 
     def request():
-        return client.chat.completions.create(
+        # Raw response so the org's real tokens-per-minute limit can be read
+        # off the headers: when OpenAI raises the account's tier, batches
+        # speed up on their own instead of staying paced at the old limit.
+        raw = client.chat.completions.with_raw_response.create(
             model=SETTINGS.openai_vision_model,
             temperature=0,
             messages=[
@@ -248,11 +207,12 @@ def extract_attributes(
                 "json_schema": {"name": "garment_attributes", "strict": True, "schema": _ATTRIBUTE_SCHEMA},
             },
         )
+        openai_throttle.VISION_BUDGET.observe_limit(raw.headers.get("x-ratelimit-limit-tokens"))
+        return raw.parse()
 
-    estimate = SETTINGS.openai_vision_tokens_per_call
-    openai_throttle.VISION_BUDGET.acquire(estimate)
+    reservation = openai_throttle.VISION_BUDGET.acquire()
     response = openai_throttle.call_with_rate_limit_retry(request, label=detection_id)
-    openai_throttle.VISION_BUDGET.settle(estimate, openai_throttle.usage_total_tokens(response))
+    openai_throttle.VISION_BUDGET.settle(reservation, openai_throttle.usage_total_tokens(response))
 
     payload = json.loads(response.choices[0].message.content)
     confidence = AttributeConfidence(**payload["confidence"])
@@ -283,11 +243,6 @@ def extract_attributes(
         if condition and condition.strip().lower() == "damaged":
             condition = None
 
-    # Only meaningful when we actually showed the model a cutout; ignore
-    # whatever it says otherwise rather than trust a judgment about an
-    # image it never saw.
-    cutout_looks_complete = payload.get("cutout_looks_complete") if cutout_crop is not None else None
-
     return Attributes(
         detection_id=detection_id,
         category=category,
@@ -298,5 +253,4 @@ def extract_attributes(
         gender=gender,
         defects=defects,
         confidence=confidence,
-        cutout_looks_complete=cutout_looks_complete,
     )

@@ -13,8 +13,8 @@ import { BRAND } from '../../lib/sv'
 const FEATURES = [
   {
     icon: ScanEye,
-    title: 'Hittar och friläger',
-    copy: 'Hittar och beskär varje plagg i en bild – ett enstaka plagg eller en hel hög – utan manuell klippning. Blir frilägningen inte ren används ditt originalfoto.',
+    title: 'Hittar varje plagg',
+    copy: 'Hittar varje plagg i en bild – ett enstaka plagg eller en hel hög. Annonsbilderna är alltid dina egna foton, aldrig AI-redigerade.',
   },
   {
     icon: Layers,
@@ -35,7 +35,7 @@ const FEATURES = [
 
 const PIPELINE = [
   { title: 'Hitta', detail: 'Lokaliserar varje plagg i röriga bilder – 20–30 åt gången.' },
-  { title: 'Frilägg', detail: 'Rena bilder redo för annonsen, utan att förvränga eller kapa plagget.' },
+  { title: 'Beskär', detail: 'Ditt eget foto, beskuret runt plagget – aldrig redigerat av AI:n.' },
   { title: 'Läs av', detail: 'Märke, storlek, färg och skick – på svenska.' },
   { title: 'Matcha', detail: 'Länkar samma plagg från olika vinklar till en annons.' },
   { title: 'Skriv & prissätt', detail: 'Färdig svensk titel, beskrivning och prisförslag att godkänna eller ändra.' },
@@ -43,7 +43,7 @@ const PIPELINE = [
 
 const MARQUEE = [
   'Hittar plagg',
-  'Friläggning',
+  'Dina egna foton',
   'Läser etiketter',
   'Storlekar',
   'Skick flaggas',

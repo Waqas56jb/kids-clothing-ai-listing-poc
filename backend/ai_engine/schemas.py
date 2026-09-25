@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Canonical category keys the vision model must choose from. Keeping these as
 # stable English keys (not free text) is what lets pricing rules, grouping,
@@ -98,11 +98,6 @@ class Attributes(BaseModel):
     defects: Optional[str] = None
     confidence: AttributeConfidence = Field(default_factory=AttributeConfidence)
     unavailable: bool = False
-    # None when no cutout was offered to the model at all (nothing to judge);
-    # otherwise the model's own verdict on whether the cutout genuinely shows
-    # the complete garment cleanly. False routes the pipeline back to the
-    # seller's original photo -- see pipeline.py's on_vision_done.
-    cutout_looks_complete: Optional[bool] = None
 
 
 class MatchStatus(str, Enum):
@@ -111,23 +106,43 @@ class MatchStatus(str, Enum):
     NEEDS_REVIEW = "needs_review"
 
 
-class DetectionImages(BaseModel):
-    """Every image variant we have for one detection, as paths relative to
-    the job's file root (served via `/files/{job_id}/...`).
+def crop_path_for(path: str | None) -> str | None:
+    """The seller's own crop that sits next to a legacy AI cutout
+    (`cutouts/<det>.png` -> `crops/<det>.jpg`, always written together)."""
+    if not path or "cutouts/" not in path:
+        return path
+    head, _, name = path.rpartition("cutouts/")
+    return f"{head}crops/{name.rsplit('.', 1)[0]}.jpg"
 
-    `display` is the one the UI should show by default: the clean cutout
-    when the mask passed quality checks, otherwise the untouched crop from
-    the seller's own photo -- the AI is never allowed to make the seller's
-    photo look worse."""
+
+class DetectionImages(BaseModel):
+    """Every image we have for one detection, as paths relative to the job's
+    file root (served via `/files/{job_id}/...`).
+
+    Product images are always the seller's own photo -- `display` is the
+    untouched crop of the original, never an AI-edited cutout (client
+    decision 2026-09-25). `occluded` means another garment's mask overlapped
+    this one in the photo, so attributes were read off a partly hidden item."""
 
     detection_id: str
     image_id: str
     original: str
     crop: str
-    cutout: Optional[str] = None
     display: str
-    display_kind: str = "original"  # "cutout" | "original"
-    cutout_rejected_reason: Optional[str] = None
+    display_kind: str = "original"
+    occluded: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _originals_only(cls, data):
+        # Results stored before 2026-09-25 may point `display` at an AI cutout.
+        if isinstance(data, dict):
+            data = dict(data)
+            if data.get("cutout_rejected_reason") == "overlaps_other_garment":
+                data.setdefault("occluded", True)
+            data["display"] = data.get("crop") or crop_path_for(data.get("display"))
+            data["display_kind"] = "original"
+        return data
 
 
 class Garment(BaseModel):
@@ -149,6 +164,11 @@ class Garment(BaseModel):
     original_image: Optional[str] = None
     listing_title: Optional[str] = None
     listing_description: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _cover_is_an_original(self):
+        self.display_image = crop_path_for(self.display_image)
+        return self
 
 
 class PipelineResult(BaseModel):

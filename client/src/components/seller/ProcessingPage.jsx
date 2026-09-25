@@ -9,7 +9,7 @@ import Button from '../ui/Button'
 
 const STEPS = [
   { key: 'detecting', label: 'Hittar plagg i bilderna' },
-  { key: 'segmenting_extracting', label: 'Friläger plagg, läser etiketter och attribut' },
+  { key: 'segmenting_extracting', label: 'Läser av plagg, etiketter och attribut' },
   { key: 'finishing', label: 'Matchar plagg och skriver annonstexter' },
 ]
 

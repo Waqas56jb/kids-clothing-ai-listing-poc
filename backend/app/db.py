@@ -918,7 +918,8 @@ def update_order_item_payout(item_id: str, **fields: Any) -> None:
 
 def list_pending_onboarding_transfers(seller_id: str) -> list[dict[str, Any]]:
     rows = _pg_execute(
-        "select * from public.order_items where seller_id = %s and transfer_status = 'pending_onboarding'",
+        "select * from public.order_items where seller_id = %s and transfer_status = 'pending_onboarding' "
+        "and status <> 'refunded'",
         (seller_id,),
         fetch="all",
     )
@@ -989,6 +990,16 @@ def sync_order_refund_from_stripe(payment_intent_id: str, amount_refunded_minor:
     status = "refunded" if refunded >= int(row["total"]) else "partially_refunded" if refunded > 0 else None
     if status:
         _pg_execute("update public.orders set status = %s, refunded_amount = %s where id = %s", (status, refunded, order_id))
+    if status == "refunded":
+        # A full refund done in the Dashboard: the buyer has every krona back,
+        # so no payout still waiting on seller onboarding may go out. (A
+        # partial one can't be attributed to an item from here -- those
+        # stay for a human to resolve.)
+        _pg_execute(
+            "update public.order_items set transfer_status = 'cancelled', updated_at = now() "
+            "where order_id = %s and transfer_status in ('pending_onboarding', 'failed')",
+            (order_id,),
+        )
 
 
 def is_webhook_event_processed(event_id: str) -> bool:

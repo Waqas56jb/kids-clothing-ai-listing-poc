@@ -64,7 +64,7 @@ export default function GarmentShowcase() {
             Varje plagg presenterat så att det säljer
           </h2>
           <p className="mt-4 text-base leading-relaxed text-white/65">
-            Rena bilder, matchade mellan foton och prissatta med ett intervall – luta korten för att känna djupet.
+            Dina egna foton, matchade mellan bilder och prissatta med ett intervall – luta korten för att känna djupet.
           </p>
         </motion.div>
 

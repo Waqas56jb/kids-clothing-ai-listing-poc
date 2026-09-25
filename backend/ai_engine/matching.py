@@ -5,6 +5,7 @@ from itertools import combinations
 
 import numpy as np
 
+from ai_engine.assignment import min_cost_assignment
 from ai_engine.config import SETTINGS
 from ai_engine.embeddings import cosine_similarity
 from ai_engine.schemas import AttributeConfidence, Attributes, Detection, Garment, MatchStatus
@@ -41,10 +42,106 @@ _COLOR_FAMILIES = {
     "green": ["grön", "gron", "green", "ljusgrön", "mörkgrön", "mint", "oliv", "olive", "khaki", "lime"],
     "yellow": ["gul", "gula", "yellow", "senap", "mustard", "citron"],
     "orange": ["orange", "brandgul", "aprikos", "apricot", "persika", "peach"],
-    "brown": ["brun", "bruna", "brown", "beige", "sand", "camel", "kamel", "taupe", "rost", "rust", "terrakotta"],
+    "brown": ["brun", "bruna", "brown", "camel", "kamel", "taupe", "rost", "rust", "terrakotta"],
+    "beige": ["beige", "ljusbeige", "sand", "sandfärgad", "havre", "oat"],
 }
 _COLOR_LOOKUP = {word: family for family, words in _COLOR_FAMILIES.items() for word in words}
 _MULTI_WORDS = {"flerfärgad", "flerfärgat", "multicolor", "multicolour", "multi", "mönstrad", "mönstrat", "randig", "randigt", "rutig", "blommig", "printed"}
+
+
+# The vision model names the same baby garment differently from photo to
+# photo -- measured on one client batch: a muslin romper was "romper" in two
+# photos and "bodysuit" in the third, and one pair of footed pants came back
+# as "trousers", "sleeper" and "leggings". A strict category veto split each
+# into several listings, and the romper's orphaned photo was then matched
+# into a *different* garment's listing. Categories sharing a group never veto
+# each other; colour and print still do.
+_CATEGORY_GROUPS = (
+    frozenset({"bodysuit", "onesie", "romper", "sleeper", "pajamas"}),
+    frozenset({"trousers", "jeans", "leggings", "tights", "overalls", "sleeper", "pajamas"}),
+    frozenset({"t-shirt", "top", "shirt", "blouse"}),
+    frozenset({"sweater", "sweatshirt", "hoodie", "cardigan", "top"}),
+    frozenset({"jacket", "coat", "vest"}),
+    frozenset({"dress", "skirt"}),
+    frozenset({"hat", "beanie"}),
+    frozenset({"socks", "tights"}),
+)
+_WILDCARD_CATEGORIES = {None, "unknown", "other"}
+
+
+def categories_compatible(a: str | None, b: str | None) -> bool:
+    a, b = _normalize(a), _normalize(b)
+    if a in _WILDCARD_CATEGORIES or b in _WILDCARD_CATEGORIES or a == b:
+        return True
+    return any(a in group and b in group for group in _CATEGORY_GROUPS)
+
+
+# Print/motif words in the vision model's Swedish colour text. Two garments
+# whose prints are both named and share nothing (giraffes vs flowers) are not
+# the same garment even when both are "white" -- which is how a floral
+# romper's photo ended up in a giraffe bodysuit's listing. Generic words
+# ("tryck", "mönster", "djurmotiv") name no specific print and never veto.
+_MOTIF_PREFIXES = {
+    "giraffe": ("giraff",),
+    "bear": ("björn", "bjorn", "nalle", "teddy"),
+    "heart": ("hjärt", "hjart"),
+    "dots": ("prick", "polka"),
+    "floral": ("blom", "rosor", "rosmönst", "floral"),
+    "stripes": ("rand", "ränd"),
+    "checks": ("rutig", "rutor", "rutmönst", "rutad"),
+    "stars": ("stjärn",),
+    "dinosaur": ("dinosaur", "dino"),
+    "rabbit": ("kanin",),
+    "fox": ("räv",),
+    "cat": ("katt",),
+    "dog": ("hund",),
+    "elephant": ("elefant",),
+    "rainbow": ("regnbåg",),
+}
+
+
+_ANIMAL_MOTIFS = frozenset({"giraffe", "bear", "dinosaur", "rabbit", "fox", "cat", "dog", "elephant"})
+# "djurmotiv"/"djurtryck" names no particular animal, but is still never a
+# floral, dotted or striped print.
+_GENERIC_ANIMAL_PREFIXES = ("djur", "animal")
+
+
+def motifs(text: str | None) -> frozenset[str]:
+    """Named prints in a colour description; a print that is only "some
+    animal" comes back as {"animal"}."""
+    if not text:
+        return frozenset()
+    found = set()
+    generic_animal = False
+    for word in re.findall(r"[a-zåäöéü]+", text.lower()):
+        if word.startswith(_GENERIC_ANIMAL_PREFIXES):
+            generic_animal = True
+        for motif, prefixes in _MOTIF_PREFIXES.items():
+            if word.startswith(prefixes):
+                found.add(motif)
+    if generic_animal and not (found & _ANIMAL_MOTIFS):
+        found.add("animal")
+    return frozenset(found)
+
+
+def motifs_compatible(a: frozenset[str], b: frozenset[str]) -> bool:
+    """True unless both name a print and nothing they name can be the same."""
+    if not a or not b or a & b:
+        return True
+    if "animal" in a and b & _ANIMAL_MOTIFS or "animal" in b and a & _ANIMAL_MOTIFS:
+        return True
+    return False
+
+
+# Cream/beige reads as "vit" in daylight and "beige" in a warmer, darker shot
+# of the very same garment (measured: one dotted knot hat, three photos).
+_BRIDGED_COLORS = {frozenset({"beige", "white"}), frozenset({"beige", "brown"})}
+
+
+def colors_compatible(family_a: str | None, family_b: str | None) -> bool:
+    if not family_a or not family_b or family_a == family_b:
+        return True
+    return frozenset({family_a, family_b}) in _BRIDGED_COLORS
 
 
 def primary_color(text: str | None) -> str | None:
@@ -78,9 +175,16 @@ def _field_score(a: str | None, b: str | None) -> float:
 
 
 def _color_score(a: str | None, b: str | None) -> float:
+    # The same print named in both ("blommig" / "vit med blommigt mönster")
+    # is strong agreement even when the wording differs.
+    motifs_a, motifs_b = motifs(a), motifs(b)
+    if motifs_a and motifs_b and motifs_compatible(motifs_a, motifs_b):
+        return 1.0
     family_a, family_b = primary_color(a), primary_color(b)
     if family_a and family_b:
-        return 1.0 if family_a == family_b else 0.0
+        if family_a == family_b:
+            return 1.0
+        return 0.75 if colors_compatible(family_a, family_b) else 0.0
     return _field_score(a, b)
 
 
@@ -95,17 +199,23 @@ def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
 
 def is_vetoed(attr_a: Attributes, attr_b: Attributes) -> bool:
     """Two detections can never be the same physical garment if their
-    extracted categories confidently disagree (a jacket is never a trouser)
-    or their primary colors confidently disagree (a white bodysuit is never
-    a pink one)."""
-    cat_a, cat_b = _normalize(attr_a.category), _normalize(attr_b.category)
-    if cat_a not in (None, "unknown") and cat_b not in (None, "unknown") and cat_a != cat_b:
+    categories are incompatible (a jacket is never a trouser -- but a
+    "romper" and a "bodysuit" may well be one garment), their primary colors
+    confidently disagree (a white bodysuit is never a pink one), or both
+    name a print and the prints share nothing (giraffes are never flowers)."""
+    if not categories_compatible(attr_a.category, attr_b.category):
         return True
-    color_a, color_b = primary_color(attr_a.color), primary_color(attr_b.color)
-    if color_a and color_b and color_a != color_b:
-        if attr_a.confidence.color >= 0.5 and attr_b.confidence.color >= 0.5:
-            return True
-    return False
+    return appearance_differs(attr_a, attr_b)
+
+
+def appearance_differs(attr_a: Attributes, attr_b: Attributes) -> bool:
+    """Confidently different fabric: incompatible colours, or two named
+    prints with nothing in common."""
+    if attr_a.confidence.color < 0.5 or attr_b.confidence.color < 0.5:
+        return False
+    if not colors_compatible(primary_color(attr_a.color), primary_color(attr_b.color)):
+        return True
+    return not motifs_compatible(motifs(attr_a.color), motifs(attr_b.color))
 
 
 def fields_all_match_and_known(attr_a: Attributes, attr_b: Attributes) -> bool:
@@ -252,13 +362,12 @@ def build_garments(
 ) -> list[Garment]:
     """Cluster detections into physical garments and assemble final records.
 
-    Clustering is complete-linkage: a detection joins a cluster only if it
-    matches *every* member above the review threshold (and no pair is vetoed
-    by category/color). Single-link chaining (A~B, B~C therefore A=C) is
-    exactly how three different bodysuits used to collapse into one garment.
-    Clusters that form below the merge threshold, or that look like they
-    might be two separate-but-identical items, come out flagged for seller
-    review rather than silently merged or silently split.
+    A detection joins a cluster only if it matches *every* member above the
+    review threshold (and no pair is vetoed) -- single-link chaining (A~B,
+    B~C therefore A=C) is how three different bodysuits once collapsed into
+    one garment. Clusters that form below the merge threshold, or that look
+    like two separate-but-identical items, are flagged for seller review
+    rather than silently merged or silently split.
     """
     detections_by_id = {d.id: d for d in detections}
     ids = [d.id for d in detections]
@@ -281,38 +390,79 @@ def build_garments(
             ocr_texts.get(id_b, []),
         )
 
-    threshold = SETTINGS.match_review_threshold
-    cluster_of: dict[str, set[str]] = {det_id: {det_id} for det_id in ids}
-    candidate_pairs = sorted(
-        ((score, pair) for pair, score in pair_scores.items() if score >= threshold),
-        key=lambda item: item[0],
-        reverse=True,
-    )
-    for _score, pair in candidate_pairs:
-        id_a, id_b = tuple(pair)
-        cluster_a, cluster_b = cluster_of[id_a], cluster_of[id_b]
-        if cluster_a is cluster_b:
-            continue
-        # Also refuse to put two detections from the same photo in one cluster.
-        images_a = {detections_by_id[x].image_id for x in cluster_a}
-        images_b = {detections_by_id[x].image_id for x in cluster_b}
-        if images_a & images_b:
-            continue
-        if all(pair_scores[frozenset((x, y))] >= threshold for x in cluster_a for y in cluster_b):
-            merged = cluster_a | cluster_b
-            for member in merged:
-                cluster_of[member] = merged
-
-    clusters: list[list[str]] = []
-    seen: set[int] = set()
-    for det_id in ids:
-        cluster = cluster_of[det_id]
-        if id(cluster) in seen:
-            continue
-        seen.add(id(cluster))
-        clusters.append(sorted(cluster, key=ids.index))
+    image_of = {det_id: detections_by_id[det_id].image_id for det_id in ids}
+    clusters = cluster_across_photos(ids, image_of, pair_scores, SETTINGS.match_review_threshold)
 
     return [
         _assemble_garment(index, member_ids, detections_by_id, attributes, embeddings, pair_scores)
         for index, member_ids in enumerate(clusters, start=1)
     ]
+
+
+def _cluster_score(cluster: list[str], pair_scores: dict[frozenset[str], float]) -> float:
+    return sum(pair_scores[frozenset(pair)] for pair in combinations(cluster, 2))
+
+
+def _assign_in_order(
+    photo_order: list[str],
+    ids_by_photo: dict[str, list[str]],
+    pair_scores: dict[frozenset[str], float],
+    threshold: float,
+) -> list[list[str]]:
+    clusters: list[list[str]] = []
+    for photo in photo_order:
+        new = ids_by_photo[photo]
+        if not new:
+            continue
+        # Rows: this photo's detections. Columns: every existing cluster,
+        # then one "starts its own garment" slot per detection (cost 0).
+        # A cluster is only allowed when the detection clears the threshold
+        # against *every* member; its cost is minus the average score.
+        blocked = 1e6
+        cost = []
+        for det_id in new:
+            row = []
+            for cluster in clusters:
+                scores = [pair_scores[frozenset((det_id, member))] for member in cluster]
+                row.append(-sum(scores) / len(scores) if min(scores) >= threshold else blocked)
+            row.extend([0.0] * len(new))
+            cost.append(row)
+        for row_index, column in enumerate(min_cost_assignment(cost)):
+            det_id = new[row_index]
+            if column < len(clusters) and cost[row_index][column] < 0:
+                clusters[column].append(det_id)
+            else:
+                clusters.append([det_id])
+    return clusters
+
+
+def cluster_across_photos(
+    ids: list[str],
+    image_of: dict[str, str],
+    pair_scores: dict[frozenset[str], float],
+    threshold: float,
+) -> list[list[str]]:
+    """Group detections into physical garments, at most one per photo.
+
+    Each photo's detections are assigned to the garments found so far *all
+    at once* (optimal assignment), not one best pair at a time. Measured on
+    a client pile with two white floral pieces: the greedy best-pair-first
+    clusterer met an exact tie (0.790 / 0.790) for the third photo, took
+    the wrong one first and swapped the two garments' photos, while the
+    joint assignment of that photo scored the correct pairing highest.
+    Every photo is tried as the starting point; the grouping with the
+    highest total similarity wins, so the result does not depend on the
+    order the seller uploaded in."""
+    photos = list(dict.fromkeys(image_of[det_id] for det_id in ids))
+    ids_by_photo = {photo: [det_id for det_id in ids if image_of[det_id] == photo] for photo in photos}
+    best: list[list[str]] | None = None
+    best_score = -1.0
+    for start in photos:
+        order = [start] + [photo for photo in photos if photo != start]
+        clusters = _assign_in_order(order, ids_by_photo, pair_scores, threshold)
+        total = sum(_cluster_score(cluster, pair_scores) for cluster in clusters)
+        if total > best_score + 1e-9:
+            best, best_score = clusters, total
+    position = {det_id: index for index, det_id in enumerate(ids)}
+    grouped = [sorted(cluster, key=position.__getitem__) for cluster in best or []]
+    return sorted(grouped, key=lambda cluster: position[cluster[0]])

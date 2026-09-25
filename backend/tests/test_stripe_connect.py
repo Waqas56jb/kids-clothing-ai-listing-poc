@@ -379,6 +379,63 @@ def test_refund_without_a_prior_transfer_skips_reversal(fake_stripe, monkeypatch
     assert fake_stripe.calls["Transfer.create_reversal"] == []
 
 
+def _refund_setup(monkeypatch, item):
+    order = _order([item])
+    order["stripe_payment_intent_id"] = "pi_fake123"
+    monkeypatch.setattr(stripe_connect.db, "fetch_order", lambda oid: order)
+    monkeypatch.setattr(stripe_connect.db, "create_refund", lambda *a: {"id": "refund-row-1"})
+    monkeypatch.setattr(stripe_connect.db, "update_refund", lambda *a, **k: None)
+    monkeypatch.setattr(stripe_connect.db, "update_order_item", lambda *a: None)
+    monkeypatch.setattr(stripe_connect.db, "recompute_order_refund_status", lambda *a: None)
+    monkeypatch.setattr(stripe_connect.notifications, "notify", lambda *a, **k: None)
+    payouts = []
+    monkeypatch.setattr(stripe_connect.db, "update_order_item_payout", lambda item_id, **f: payouts.append(f))
+    return payouts
+
+
+def test_refund_of_a_payout_still_waiting_on_onboarding_cancels_it(fake_stripe, monkeypatch):
+    # The client's real refund on 2026-09-25: the seller had not finished
+    # Stripe onboarding, so the payout was queued, never sent. The refund
+    # must call it off -- otherwise it is paid out when they onboard.
+    payouts = _refund_setup(monkeypatch, _item(status="paid", price=25, transfer_status="pending_onboarding", stripe_transfer_id=None))
+    stripe_connect.refund_order_item("order-1", "item-1", "actor-1")
+    assert fake_stripe.calls["Transfer.create_reversal"] == []
+    assert payouts[-1]["transfer_status"] == "cancelled"
+
+
+def test_refund_of_a_sent_payout_reverses_it(fake_stripe, monkeypatch):
+    payouts = _refund_setup(monkeypatch, _item(status="paid", price=100, seller_amount=94, transfer_status="transferred", stripe_transfer_id="tr_1"))
+    stripe_connect.refund_order_item("order-1", "item-1", "actor-1")
+    assert len(fake_stripe.calls["Transfer.create_reversal"]) == 1
+    assert payouts[-1]["transfer_status"] == "reversed"
+
+
+def test_onboarding_never_pays_out_a_refunded_item(fake_stripe, monkeypatch):
+    # Even if a stale row still says pending_onboarding, a refunded item is
+    # never transferred when the seller's payouts switch on.
+    monkeypatch.setattr(
+        stripe_connect.db, "fetch_profile",
+        lambda sid: _seller(stripe_account_id="acct_seller", stripe_payouts_enabled=True),
+    )
+    monkeypatch.setattr(stripe_connect.db, "update_order_item_payout", lambda *a, **k: None)
+    refunded = _item(status="refunded", transfer_status="pending_onboarding", order_id="order-1")
+    monkeypatch.setattr(stripe_connect.db, "list_pending_onboarding_transfers", lambda sid: [refunded])
+    monkeypatch.setattr(stripe_connect.db, "fetch_order", lambda oid: _order([refunded]))
+    stripe_connect._retry_pending_transfers("seller-1")
+    assert fake_stripe.calls["Transfer.create"] == []
+
+
+def test_a_late_webhook_retry_does_not_pay_out_a_cancelled_or_reversed_item(fake_stripe, monkeypatch):
+    monkeypatch.setattr(
+        stripe_connect.db, "fetch_profile",
+        lambda sid: _seller(stripe_account_id="acct_seller", stripe_payouts_enabled=True),
+    )
+    monkeypatch.setattr(stripe_connect.db, "update_order_item_payout", lambda *a, **k: None)
+    order = _order([_item(transfer_status="cancelled"), _item(id="item-2", transfer_status="reversed")])
+    stripe_connect.transfer_for_paid_order(order)
+    assert fake_stripe.calls["Transfer.create"] == []
+
+
 # ---------------------------------------------------------------------------
 # Webhooks: signature verification and idempotency
 # ---------------------------------------------------------------------------

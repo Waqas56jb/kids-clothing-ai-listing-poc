@@ -19,11 +19,11 @@ import numpy as np
 from ai_engine.pipeline import (
     _Prepared,
     _attach_images,
-    _downgrade_if_ai_flagged_incomplete,
     _drop_duplicate_detections,
     _mask_inside_box_fraction,
     _mask_overlap_fraction,
     _overlapping_ids,
+    _parts_of_bigger_garments,
 )
 from ai_engine.schemas import (
     AttributeConfidence,
@@ -45,17 +45,15 @@ def _quality(coverage: float = 0.7, extent_x: float = 0.9, extent_y: float = 0.9
     return MaskQuality(coverage=coverage, hole_fraction=0.0, extent_x=extent_x, extent_y=extent_y, rejected_reason=None)
 
 
-def _prepared(det_id: str, image_id: str, *, display_kind: str, rejected_reason: str | None, quality: MaskQuality, confidence: float = 0.9) -> _Prepared:
+def _prepared(det_id: str, image_id: str, *, occluded: bool = False, quality: MaskQuality, confidence: float = 0.9) -> _Prepared:
     det = _det(det_id, image_id, confidence)
     images = DetectionImages(
         detection_id=det_id,
         image_id=image_id,
         original=f"originals/{image_id}.jpg",
         crop=f"crops/{det_id}.jpg",
-        cutout=f"cutouts/{det_id}.png" if display_kind == "cutout" else None,
-        display=f"cutouts/{det_id}.png" if display_kind == "cutout" else f"crops/{det_id}.jpg",
-        display_kind=display_kind,
-        cutout_rejected_reason=rejected_reason,
+        display=f"crops/{det_id}.jpg",
+        occluded=occluded,
     )
     return _Prepared(detection=det, images=images, ocr_texts=[], embedding=np.zeros(4), quality=quality)
 
@@ -125,21 +123,66 @@ def test_overlapping_ids_only_flags_pairs_in_the_same_photo():
     assert overlapping == {"p1_det0", "p1_det1"}
 
 
-def test_nearly_fully_nested_detection_is_dropped_as_a_duplicate():
-    # A tight sub-crop of the same physical garment (e.g. a different prompt
-    # phrase matching just the collar/torso) whose mask is almost entirely
-    # inside the bigger, more-confident detection's mask -- this is the
-    # real failure mode empirically observed on an ordinary solo photo: the
-    # detector fired twice on one garment and, left alone, each box would
-    # have become its own "garment" in the results.
+def _dedup(detections, masks, fallback=None):
+    return _drop_duplicate_detections(detections, masks, fallback or {d.id: False for d in detections})
+
+
+def test_the_same_garment_boxed_twice_keeps_the_more_confident_box():
+    # Two prompt phrases firing on one garment: near-identical masks.
+    a = _mask(200, 200)
+    a[0:150, 0:150] = True
+    b = _mask(200, 200)
+    b[5:150, 5:150] = True
+    result = _dedup([_det("a", "img", confidence=0.4), _det("b", "img", confidence=0.9)], {"a": a, "b": b})
+    assert [d.id for d in result.kept] == ["b"]
+    assert result.dropped == 1 and result.nested_in == {}
+
+
+def test_a_tiny_piece_inside_a_garment_is_dropped_even_if_the_detector_liked_it_more():
     big = _mask(200, 200)
-    big[0:150, 0:150] = True  # area 22500
-    small = _mask(200, 200)
-    small[10:100, 10:100] = True  # area 8100, fully inside `big`
-    detections = [_det("big", "img", confidence=0.9), _det("small", "img", confidence=0.7)]
-    kept, notes = _drop_duplicate_detections(detections, {"big": big, "small": small}, {"big": False, "small": False})
-    assert [d.id for d in kept] == ["big"]
-    assert notes and "dubblett" in notes[0].lower()
+    big[0:150, 0:150] = True                    # 22500 px
+    tag = _mask(200, 200)
+    tag[10:40, 10:40] = True                    # 900 px = 4% -- a tag, a foot, a sleeve sliver
+    result = _dedup([_det("big", "img", confidence=0.3), _det("tag", "img", confidence=0.95)], {"big": big, "tag": tag})
+    assert [d.id for d in result.kept] == ["big"]
+    assert result.dropped == 1
+
+
+def test_a_mid_size_item_inside_a_garment_is_kept_for_vision_to_judge():
+    # The Pooh hat on the giraffe bodysuit: 18% of its mask and entirely
+    # inside it because SAM2's bodysuit mask bled over the hat. Geometry
+    # can't tell that from a big part of the bodysuit, so both go on.
+    body = _mask(200, 200)
+    body[0:150, 0:150] = True                   # 22500 px
+    hat = _mask(200, 200)
+    hat[100:150, 70:150] = True                 # 4000 px = 18%, inside `body`
+    result = _dedup([_det("body", "img"), _det("hat", "img")], {"body": body, "hat": hat})
+    assert {d.id for d in result.kept} == {"body", "hat"}
+    assert result.nested_in == {"hat": "body"}
+    assert result.dropped == 0
+
+
+def test_a_box_around_two_garments_is_dropped_and_both_garments_kept():
+    # Measured: one detector box around a bodysuit and the romper next to
+    # it, each ~50% of the box's mask -- dropped even though the detector
+    # was more confident about it than about either garment.
+    left = _mask(200, 200)
+    left[0:100, 0:95] = True
+    right = _mask(200, 200)
+    right[0:100, 105:200] = True
+    pair = left | right
+    detections = [_det("pair", "img", confidence=0.9), _det("left", "img", confidence=0.3), _det("right", "img", confidence=0.3)]
+    result = _dedup(detections, {"pair": pair, "left": left, "right": right})
+    assert {d.id for d in result.kept} == {"left", "right"}
+
+
+def test_a_garment_with_one_item_resting_on_it_is_not_a_group():
+    body = _mask(200, 200)
+    body[0:150, 0:150] = True
+    hat = _mask(200, 200)
+    hat[100:150, 70:150] = True
+    result = _dedup([_det("body", "img"), _det("hat", "img")], {"body": body, "hat": hat})
+    assert "body" in {d.id for d in result.kept}
 
 
 def test_two_different_garments_with_overlapping_boxes_are_not_treated_as_duplicates():
@@ -149,23 +192,10 @@ def test_two_different_garments_with_overlapping_boxes_are_not_treated_as_duplic
     a = _mask(200, 200)
     a[0:100, 0:100] = True
     b = _mask(200, 200)
-    b[0:100, 100:200] = True  # touches `a`'s box region but shares no mask pixels
-    detections = [_det("a", "img"), _det("b", "img")]
-    kept, notes = _drop_duplicate_detections(detections, {"a": a, "b": b}, {"a": False, "b": False})
-    assert {d.id for d in kept} == {"a", "b"}
-    assert notes == []
-
-
-def test_duplicate_detection_keeps_the_more_confident_one_even_if_smaller():
-    big_low_conf = _mask(200, 200)
-    big_low_conf[0:150, 0:150] = True
-    small_high_conf = _mask(200, 200)
-    small_high_conf[10:100, 10:100] = True
-    detections = [_det("big", "img", confidence=0.3), _det("small", "img", confidence=0.95)]
-    kept, _ = _drop_duplicate_detections(
-        detections, {"big": big_low_conf, "small": small_high_conf}, {"big": False, "small": False}
-    )
-    assert [d.id for d in kept] == ["small"]
+    b[0:100, 100:200] = True
+    result = _dedup([_det("a", "img"), _det("b", "img")], {"a": a, "b": b})
+    assert {d.id for d in result.kept} == {"a", "b"}
+    assert result.dropped == 0 and result.nested_in == {}
 
 
 def test_fallback_masks_are_never_deduplicated():
@@ -173,10 +203,50 @@ def test_fallback_masks_are_never_deduplicated():
     # -- never silently drop a detection on that basis alone.
     a = _mask(50, 50)
     a[0:40, 0:40] = True
-    detections = [_det("a", "img"), _det("b", "img")]
-    kept, notes = _drop_duplicate_detections(detections, {"a": a, "b": a.copy()}, {"a": False, "b": True})
-    assert {d.id for d in kept} == {"a", "b"}
-    assert notes == []
+    result = _dedup([_det("a", "img"), _det("b", "img")], {"a": a, "b": a.copy()}, {"a": False, "b": True})
+    assert {d.id for d in result.kept} == {"a", "b"}
+    assert result.dropped == 0
+
+
+# ---------------------------------------------------------------------------
+# After vision: is a nested item part of the garment around it?
+# ---------------------------------------------------------------------------
+
+def _attrs(det_id, category, color, confidence=0.9, **kw):
+    return Attributes(detection_id=det_id, category=category, color=color,
+                      confidence=AttributeConfidence(category=0.9, color=confidence), **kw)
+
+
+def test_a_hat_resting_on_a_bodysuit_stays_its_own_garment():
+    attributes = {"body": _attrs("body", "bodysuit", "vit med giraffmönster"), "hat": _attrs("hat", "hat", "vit med tryck")}
+    assert _parts_of_bigger_garments({"hat": "body"}, attributes, {"body", "hat"}) == set()
+
+
+def test_a_big_part_in_the_same_fabric_is_dropped_as_part_of_the_garment():
+    # The round-7 sleeve, read on its own as "leggings": same colour, same print.
+    attributes = {"romper": _attrs("romper", "bodysuit", "brun med svarta hjärtan"),
+                  "sleeve": _attrs("sleeve", "leggings", "brun med svarta hjärtan")}
+    assert _parts_of_bigger_garments({"sleeve": "romper"}, attributes, {"romper", "sleeve"}) == {"sleeve"}
+
+
+def test_a_nested_item_in_a_different_print_is_a_separate_garment():
+    attributes = {"big": _attrs("big", "romper", "vit med blommigt mönster"), "small": _attrs("small", "bodysuit", "vit med giraffmönster")}
+    assert _parts_of_bigger_garments({"small": "big"}, attributes, {"big", "small"}) == set()
+
+
+def test_a_nested_item_in_a_different_colour_is_a_separate_garment():
+    attributes = {"big": _attrs("big", "bodysuit", "vit"), "small": _attrs("small", "bodysuit", "gul")}
+    assert _parts_of_bigger_garments({"small": "big"}, attributes, {"big", "small"}) == set()
+
+
+def test_an_unreadable_nested_item_is_kept_rather_than_lost():
+    attributes = {"big": _attrs("big", "bodysuit", "vit"), "small": Attributes(detection_id="small", unavailable=True)}
+    assert _parts_of_bigger_garments({"small": "big"}, attributes, {"big", "small"}) == set()
+
+
+def test_nothing_is_merged_into_a_parent_that_was_itself_dropped():
+    attributes = {"big": _attrs("big", "bodysuit", "vit"), "small": _attrs("small", "bodysuit", "vit")}
+    assert _parts_of_bigger_garments({"small": "big"}, attributes, {"small"}) == set()
 
 
 def test_barely_touching_masks_stay_below_threshold():
@@ -190,115 +260,51 @@ def test_barely_touching_masks_stay_below_threshold():
 
 
 # ---------------------------------------------------------------------------
-# Cover-image selection across a garment's matched photos
+# Cover-image selection across a garment's matched photos. Product images
+# are always the seller's own photo (client decision 2026-09-25): the choice
+# is only *which* photo, never whether to show an AI-edited version.
 # ---------------------------------------------------------------------------
 
-def test_prefers_a_clean_cutout_over_a_fallback_original():
+def test_cover_is_always_the_sellers_own_crop():
+    prepared_by_id = {"d0": _prepared("d0", "img1", quality=_quality())}
+    garment = _attach_images(_garment("g1", ["d0"]), prepared_by_id)
+    assert garment.display_image == "crops/d0.jpg"
+    assert all(v.display_kind == "original" and v.display == v.crop for v in garment.image_variants)
+
+
+def test_among_several_photos_picks_the_most_fully_visible_one():
     prepared_by_id = {
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="mask_cut_off_garment", quality=_quality()),
-        "d1": _prepared("d1", "img2", display_kind="cutout", rejected_reason=None, quality=_quality()),
-    }
-    garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
-    assert garment.display_image == "cutouts/d1.png"
-    assert garment.match_status == MatchStatus.HIGH_CONFIDENCE
-
-
-def test_among_several_clean_cutouts_picks_the_most_fully_visible_one():
-    prepared_by_id = {
-        # A narrower/partially-cut view still passed the quality gate, but a
-        # fuller view of the same garment from a second photo exists too.
-        "d0": _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality(extent_x=0.6, extent_y=0.6)),
-        "d1": _prepared("d1", "img2", display_kind="cutout", rejected_reason=None, quality=_quality(extent_x=0.95, extent_y=0.95)),
-    }
-    garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
-    assert garment.display_image == "cutouts/d1.png"
-
-
-def test_when_no_cutout_available_picks_the_least_occluded_original_not_upload_order():
-    prepared_by_id = {
-        # Uploaded first, but this photo's garment overlaps another one.
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="overlaps_other_garment", quality=_quality(extent_x=0.3, extent_y=0.9)),
-        # Uploaded second, no overlap, just a mediocre mask -- a clearer,
-        # more honest photo of the garment even without a clean cutout.
-        "d1": _prepared("d1", "img2", display_kind="original", rejected_reason="mask_has_holes", quality=_quality(extent_x=0.9, extent_y=0.9)),
+        "d0": _prepared("d0", "img1", quality=_quality(extent_x=0.6, extent_y=0.6)),
+        "d1": _prepared("d1", "img2", quality=_quality(extent_x=0.95, extent_y=0.95)),
     }
     garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
     assert garment.display_image == "crops/d1.jpg"
 
 
-def test_garment_flagged_for_review_when_only_overlapping_photos_exist():
+def test_prefers_an_unoccluded_photo_over_upload_order():
     prepared_by_id = {
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="overlaps_other_garment", quality=_quality()),
+        # Uploaded first, but another garment lies partly on top of it here.
+        "d0": _prepared("d0", "img1", occluded=True, quality=_quality(extent_x=0.95, extent_y=0.95)),
+        "d1": _prepared("d1", "img2", quality=_quality(extent_x=0.8, extent_y=0.8)),
     }
-    garment = _attach_images(_garment("g1", ["d0"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
-    assert garment.match_status == MatchStatus.NEEDS_REVIEW
-
-
-def test_garment_not_flagged_when_fallback_is_unrelated_to_overlap():
-    prepared_by_id = {
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="mask_has_holes", quality=_quality()),
-    }
-    garment = _attach_images(_garment("g1", ["d0"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
+    garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
+    assert garment.display_image == "crops/d1.jpg"
     assert garment.match_status == MatchStatus.HIGH_CONFIDENCE
 
 
-# ---------------------------------------------------------------------------
-# Vision-judged cutout completeness (real messy-pile photos showed masks
-# that pass every geometric check -- decent coverage, no enclosed holes,
-# wide extent -- yet still look torn or missing a visible chunk to a human;
-# no shape/color heuristic tried caught this without also flagging plenty
-# of genuinely fine cutouts, so the model that already looks at both images
-# is asked to judge its own cutout directly).
-# ---------------------------------------------------------------------------
-
-def test_ai_flagged_cutout_is_downgraded_to_the_original_photo():
-    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
-    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=False)
-    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
-    assert prepared.images.display_kind == "original"
-    assert prepared.images.display == prepared.images.crop
-    assert prepared.images.cutout_rejected_reason == "ai_flagged_incomplete"
-
-
-def test_ai_approved_cutout_is_left_alone():
-    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
-    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=True)
-    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
-    assert prepared.images.display_kind == "cutout"
-    assert prepared.images.cutout_rejected_reason is None
-
-
-def test_null_judgment_never_downgrades_a_cutout():
-    # No cutout was shown to the model (or the call failed) -- absence of a
-    # verdict must never be treated as a negative one.
-    prepared = _prepared("d0", "img1", display_kind="cutout", rejected_reason=None, quality=_quality())
-    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=None)
-    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
-    assert prepared.images.display_kind == "cutout"
-
-
-def test_ai_flag_never_touches_a_detection_that_was_already_showing_the_original():
-    prepared = _prepared("d0", "img1", display_kind="original", rejected_reason="mask_has_holes", quality=_quality())
-    attrs = Attributes(detection_id="d0", category="dress", cutout_looks_complete=False)
-    _downgrade_if_ai_flagged_incomplete(prepared, attrs)
-    assert prepared.images.cutout_rejected_reason == "mask_has_holes"  # untouched, not overwritten
-
-
-def test_ai_flagged_incomplete_forces_needs_review_like_overlap_does():
-    prepared_by_id = {
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="ai_flagged_incomplete", quality=_quality()),
-    }
+def test_garment_flagged_for_review_when_only_occluded_photos_exist():
+    prepared_by_id = {"d0": _prepared("d0", "img1", occluded=True, quality=_quality())}
     garment = _attach_images(_garment("g1", ["d0"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
     assert garment.match_status == MatchStatus.NEEDS_REVIEW
 
 
-def test_cover_selection_prefers_an_untouched_cutout_over_an_ai_flagged_one():
+def test_garment_not_flagged_when_it_was_seen_unoccluded_somewhere():
     prepared_by_id = {
-        "d0": _prepared("d0", "img1", display_kind="original", rejected_reason="ai_flagged_incomplete", quality=_quality(extent_x=0.95, extent_y=0.95)),
-        "d1": _prepared("d1", "img2", display_kind="cutout", rejected_reason=None, quality=_quality(extent_x=0.6, extent_y=0.6)),
+        "d0": _prepared("d0", "img1", occluded=True, quality=_quality()),
+        "d1": _prepared("d1", "img2", quality=_quality()),
     }
-    garment = _attach_images(_garment("g1", ["d0", "d1"]), prepared_by_id)
-    assert garment.display_image == "cutouts/d1.png"
+    garment = _attach_images(_garment("g1", ["d0", "d1"], status=MatchStatus.HIGH_CONFIDENCE), prepared_by_id)
+    assert garment.match_status == MatchStatus.HIGH_CONFIDENCE
 
 
 # ---------------------------------------------------------------------------
@@ -320,12 +326,10 @@ def test_a_limb_left_out_of_the_parent_mask_is_dropped_as_a_fragment():
         _det("parent", "img", confidence=0.7, bbox=BBox(x1=20, y1=15, x2=180, y2=180)),
         _det("fragment", "img", confidence=0.95, bbox=BBox(x1=28, y1=18, x2=52, y2=48)),
     ]
-    kept, notes = _drop_duplicate_detections(
-        detections, {"parent": parent_mask, "fragment": fragment_mask}, {"parent": False, "fragment": False}
-    )
+    result = _dedup(detections, {"parent": parent_mask, "fragment": fragment_mask})
     # Dropped despite the detector being *more* confident about the sleeve.
-    assert [d.id for d in kept] == ["parent"]
-    assert notes and "dubblett" in notes[0].lower()
+    assert [d.id for d in result.kept] == ["parent"]
+    assert result.dropped == 1
 
 
 def test_a_separate_small_garment_lying_inside_a_bigger_ones_box_is_kept():
@@ -341,11 +345,9 @@ def test_a_separate_small_garment_lying_inside_a_bigger_ones_box_is_kept():
         _det("blanket", "img", bbox=BBox(x1=10, y1=10, x2=190, y2=190)),
         _det("sock", "img", bbox=BBox(x1=80, y1=80, x2=110, y2=110)),
     ]
-    kept, notes = _drop_duplicate_detections(
-        detections, {"blanket": blanket, "sock": sock}, {"blanket": False, "sock": False}
-    )
-    assert {d.id for d in kept} == {"blanket", "sock"}
-    assert notes == []
+    result = _dedup(detections, {"blanket": blanket, "sock": sock})
+    assert {d.id for d in result.kept} == {"blanket", "sock"}
+    assert result.dropped == 0 and result.nested_in == {}
 
 
 def test_a_neighbouring_garment_only_partly_inside_the_box_is_kept():
@@ -359,10 +361,8 @@ def test_a_neighbouring_garment_only_partly_inside_the_box_is_kept():
         _det("big", "img", bbox=BBox(x1=0, y1=0, x2=200, y2=100)),
         _det("neighbour", "img", bbox=BBox(x1=0, y1=80, x2=100, y2=140)),
     ]
-    kept, _ = _drop_duplicate_detections(
-        detections, {"big": big, "neighbour": neighbour}, {"big": False, "neighbour": False}
-    )
-    assert {d.id for d in kept} == {"big", "neighbour"}
+    result = _dedup(detections, {"big": big, "neighbour": neighbour})
+    assert {d.id for d in result.kept} == {"big", "neighbour"}
 
 
 def test_mask_inside_box_fraction_is_measured_against_the_box_not_the_mask():

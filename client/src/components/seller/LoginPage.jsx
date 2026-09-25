@@ -9,7 +9,7 @@ import { BRAND } from '../../lib/sv'
 
 const FEATURES = [
   { icon: Images, text: 'Ladda upp 20–30 bilder på barnkläder på några sekunder' },
-  { icon: ScanSearch, text: 'AI:n hittar, friläger och läser av varje plagg' },
+  { icon: ScanSearch, text: 'AI:n hittar och läser av varje plagg' },
   { icon: Shirt, text: 'Färdiga svenska annonser med prisförslag – du granskar och publicerar' },
 ]
 

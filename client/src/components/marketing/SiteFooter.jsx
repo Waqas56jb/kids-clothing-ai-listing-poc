@@ -60,7 +60,7 @@ export default function SiteFooter() {
               </div>
             </div>
             <p className="mt-6 max-w-md text-base leading-relaxed text-white/60">
-              Marknadsplatsen för begagnade barnkläder där AI:n gör grovjobbet – hittar, friläger, prissätter och skriver
+              Marknadsplatsen för begagnade barnkläder där AI:n gör grovjobbet – hittar, läser av, prissätter och skriver
               annonsen – och säljaren alltid har sista ordet.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">

@@ -143,14 +143,20 @@ def transfer_for_paid_order(order: dict[str, Any]) -> None:
     if order.get("payment_provider") != "stripe" or not commerce.stripe_enabled():
         return
     for item in order.get("items", []):
-        if item.get("transfer_status") in ("transferred", "pending"):
+        if item.get("transfer_status") in _SETTLED_TRANSFER_STATUSES:
             continue
         _transfer_item(order, item)
 
 
+# A refunded item must never be paid out: `cancelled` is a queued payout the
+# refund called off before any money moved, `reversed` one that was sent and
+# clawed back.
+_SETTLED_TRANSFER_STATUSES = frozenset({"transferred", "pending", "cancelled", "reversed"})
+
+
 def _transfer_item(order: dict[str, Any], item: dict[str, Any]) -> None:
     seller_id = item.get("seller_id")
-    if not seller_id:
+    if not seller_id or item.get("status") == "refunded":
         return
     seller = db.fetch_profile(seller_id)
     commission, seller_amount = commission_split(int(item["price"]))
@@ -237,7 +243,16 @@ def refund_order_item(order_id: str, item_id: str, actor_id: str, reason: str | 
 
     db.update_refund(refund_row["id"], status="succeeded", stripe_refund_id=refund.id, stripe_transfer_reversal_id=reversal_id)
     db.update_order_item(item_id, "refunded")
-    db.update_order_item_payout(item_id, refunded_amount=amount, transfer_status="reversed" if reversal_id else item.get("transfer_status"))
+    if reversal_id:
+        transfer_status = "reversed"
+    elif not item.get("stripe_transfer_id"):
+        # Nothing was ever sent (seller not onboarded yet, or the transfer
+        # failed): call the queued payout off, or it would be paid out the
+        # moment the seller finishes onboarding.
+        transfer_status = "cancelled"
+    else:
+        transfer_status = item.get("transfer_status")
+    db.update_order_item_payout(item_id, refunded_amount=amount, transfer_status=transfer_status)
     db.recompute_order_refund_status(order_id)
     if item.get("listing_id"):
         db.update_listing(item["listing_id"], {"status": "published"})

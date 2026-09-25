@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from itertools import combinations
@@ -27,16 +28,13 @@ ProgressCallback = Callable[[str, int, int], None]
 PartialCallback = Callable[[PipelineResult], None]
 
 # Two detections in the same photo whose *segmentation masks* actually share
-# pixels are garments lying on top of / touching each other -- SAM2 tends to
-# blend the shared edge into whichever one it was prompted with, so a cutout
-# there is missing a chunk, has an invented-looking edge, or bled into the
-# neighbour. Comparing the real masks (not just the boxes) catches this even
-# when the two garments only touch along one edge and their boxes barely
-# overlap, or don't overlap at all while the masks still bleed across the
-# gap. This is deliberately sensitive: per the client's own priority, a
-# false positive here just costs one more "show the original photo" instead
-# of a cutout, while a false negative can ship a distorted or invented-looking
-# cutout to a buyer -- the two mistakes are not equally costly.
+# pixels are garments lying on top of / touching each other, so part of each
+# may be hidden. Such a detection is marked `occluded`: the vision model is
+# told to be careful with the category (a bunched sleeve peeking out from
+# under another garment can look like a hat), a less-occluded photo is
+# preferred as the cover, and a garment seen *only* occluded goes to the
+# seller for review. Deliberately sensitive -- a false positive costs one
+# extra review, a false negative a confidently wrong category.
 _MASK_OVERLAP_FRACTION = 0.06
 
 # The detector's multi-phrase prompt sometimes fires more than one box on
@@ -78,15 +76,32 @@ _FRAGMENT_INSIDE_BOX_FRACTION = 0.9
 _FRAGMENT_MAX_AREA_RATIO = 0.5
 _FRAGMENT_MIN_MASK_TOUCH = 0.02
 
-# Reasons a detection's own cutout got vetoed that mean nothing in this
-# garment's photos can be trusted at face value -- either from another
-# garment sharing the frame, or from the vision model's own judgment that
-# its cutout doesn't hold up next to the seller's original photo. Both
-# should rank behind a trustworthy cutout and, if nothing better exists,
-# both should send the garment to the seller for a look before it's
-# published.
-_REVIEW_WORTHY_REASONS = frozenset({"overlaps_other_garment", "ai_flagged_incomplete"})
+# Geometry alone cannot tell "a part of that garment" from "a separate small
+# garment lying against it": when SAM2's mask for a bodysuit bleeds over a
+# hat resting on its edge, the hat's mask sits 99.5% inside the bodysuit's,
+# exactly like a sleeve's would. Measured on a client pile, the Pooh hat was
+# 18% of the giraffe bodysuit's mask area and got dropped as its "duplicate"
+# in two of three photos -- which then let the matcher pair the remaining
+# hats wrongly. Pieces this small are still tags, feet and slivers of sleeve
+# (the round-7 sleeve was 1.6%, tags 3-6%) and are dropped straight away;
+# anything bigger is sent through the vision model and decided afterwards
+# by what it actually looks like (see _parts_of_bigger_garments).
+_SEPARATE_ITEM_MIN_AREA_RATIO = 0.10
 
+# A detector box drawn around two garments at once (measured: one box around
+# a bodysuit and the romper lying next to it, each ~50% of its mask) is not
+# a garment at all. Its members are big (10-60% of it each) and do not
+# overlap each other; a garment with a small item resting on it has just one.
+_GROUP_MEMBER_MAX_AREA_RATIO = 0.6
+
+
+@dataclass
+class _Dedup:
+    kept: list[Detection]
+    dropped: int
+    # Ambiguous nested detection -> the bigger one it sits inside; resolved
+    # after vision.
+    nested_in: dict[str, str]
 
 @dataclass
 class _Prepared:
@@ -134,60 +149,105 @@ def _drop_duplicate_detections(
     detections: list[Detection],
     masks_by_id: dict[str, np.ndarray],
     fallback_by_id: dict[str, bool],
-) -> tuple[list[Detection], list[str]]:
+) -> _Dedup:
     """Collapse detections that are really the same physical garment
-    detected twice, before any of them can become their own, degraded
-    "garment" in the results (each showing the seller's original photo and
-    flagged for review, next to its own near-duplicate). Kept separate from
-    the overlap check above, which uses a far more sensitive threshold for
-    a different question: "is another detection sharing this garment's
-    photo enough to distrust a cutout" (true even for a small amount of
-    shared pixels) versus this one's "is this actually the same detection
-    twice" (true only when one is almost entirely nested in the other)."""
+    detected twice, and drop boxes drawn around several garments at once,
+    before either becomes its own "garment" in the results. Only compares
+    detections within one photo, and never a rectangular fallback mask."""
     by_image: dict[str, list[Detection]] = {}
     for det in detections:
         by_image.setdefault(det.image_id, []).append(det)
 
     dropped: set[str] = set()
+    nested_in: dict[str, str] = {}
     for group in by_image.values():
-        for a, b in combinations(group, 2):
+        real = [d for d in group if not fallback_by_id.get(d.id)]
+        area = {d.id: int(masks_by_id[d.id].sum()) for d in real}
+
+        def inside(child: Detection, parent: Detection) -> bool:
+            return (
+                area[child.id] > 0
+                and area[parent.id] >= area[child.id]
+                and _mask_overlap_fraction(masks_by_id[child.id], masks_by_id[parent.id]) >= _DUPLICATE_OVERLAP_FRACTION
+            )
+
+        for parent in real:
+            members = [
+                c for c in real
+                if c.id != parent.id
+                and inside(c, parent)
+                and _SEPARATE_ITEM_MIN_AREA_RATIO <= area[c.id] / area[parent.id] <= _GROUP_MEMBER_MAX_AREA_RATIO
+            ]
+            distinct = [
+                (x, y) for x, y in combinations(members, 2)
+                if _mask_overlap_fraction(masks_by_id[x.id], masks_by_id[y.id]) < 0.5
+            ]
+            if distinct:
+                dropped.add(parent.id)
+
+        for a, b in combinations(real, 2):
             if a.id in dropped or b.id in dropped:
                 continue
-            if fallback_by_id.get(a.id) or fallback_by_id.get(b.id):
-                continue  # no real mask to compare for at least one side
+            small, big = sorted((a, b), key=lambda d: area[d.id])
+            if not area[big.id]:
+                continue
+            ratio = area[small.id] / area[big.id]
             touch = _mask_overlap_fraction(masks_by_id[a.id], masks_by_id[b.id])
-            if touch >= _DUPLICATE_OVERLAP_FRACTION:
-                # Keep whichever the detector itself was more confident
-                # about; a tie-break on box area favours the more complete
-                # view over a tight sub-crop of the same garment.
-                def _box_area(det: Detection) -> float:
-                    x1, y1, x2, y2 = det.bbox.as_xyxy()
-                    return (x2 - x1) * (y2 - y1)
 
-                loser = min((a, b), key=lambda d: (d.detector_confidence, _box_area(d)))
-                dropped.add(loser.id)
+            if ratio > _FRAGMENT_MAX_AREA_RATIO:
+                if touch >= _DUPLICATE_OVERLAP_FRACTION:
+                    # The same garment boxed twice by different prompt
+                    # phrases. Keep whichever the detector was more sure
+                    # of; a tie goes to the more complete (bigger) box.
+                    def _box_area(det: Detection) -> float:
+                        x1, y1, x2, y2 = det.bbox.as_xyxy()
+                        return (x2 - x1) * (y2 - y1)
+
+                    dropped.add(min((a, b), key=lambda d: (d.detector_confidence, _box_area(d))).id)
                 continue
 
-            fragment, parent = sorted((a, b), key=lambda d: int(masks_by_id[d.id].sum()))
-            parent_area = int(masks_by_id[parent.id].sum())
-            if not parent_area:
+            nested = touch >= _DUPLICATE_OVERLAP_FRACTION or (
+                touch >= _FRAGMENT_MIN_MASK_TOUCH
+                and _mask_inside_box_fraction(masks_by_id[small.id], big) >= _FRAGMENT_INSIDE_BOX_FRACTION
+            )
+            if not nested:
                 continue
-            if (
-                int(masks_by_id[fragment.id].sum()) / parent_area <= _FRAGMENT_MAX_AREA_RATIO
-                and _mask_inside_box_fraction(masks_by_id[fragment.id], parent) >= _FRAGMENT_INSIDE_BOX_FRACTION
-                and touch >= _FRAGMENT_MIN_MASK_TOUCH
-            ):
-                # Always the fragment, never the parent: the detector is
-                # sometimes more confident about a clean sleeve than about
-                # the whole rumpled garment, and dropping the parent would
-                # leave the seller with a listing of one limb.
-                dropped.add(fragment.id)
+            if ratio < _SEPARATE_ITEM_MIN_AREA_RATIO:
+                # Always the small piece, never the garment around it: the
+                # detector was more confident about a clean sleeve than the
+                # rumpled romper it belonged to.
+                dropped.add(small.id)
+            else:
+                nested_in.setdefault(small.id, big.id)
 
-    if not dropped:
-        return detections, []
     kept = [d for d in detections if d.id not in dropped]
-    note = f"Slog ihop {len(dropped)} dubblettdetektion(er) av samma plagg i en bild."
-    return kept, [note]
+    return _Dedup(kept=kept, dropped=len(dropped), nested_in={c: p for c, p in nested_in.items() if c not in dropped})
+
+
+# Kinds of item that are never a piece of a bigger garment -- a hat can rest
+# on a bodysuit, but it is never its sleeve.
+_STANDALONE_CATEGORIES = frozenset({"hat", "beanie", "socks", "shoes", "mittens", "scarf", "accessory"})
+
+
+def _parts_of_bigger_garments(nested_in: dict[str, str], attributes: dict[str, Attributes], alive: set[str]) -> set[str]:
+    """Settle the nested detections the geometry could not, from what the
+    vision model saw: a piece is dropped as part of the garment around it
+    unless it is a standalone kind of item, or confidently a different
+    fabric (colour or print). Anything unreadable is kept -- losing a real
+    garment the seller could have sold is the worse mistake."""
+    parts: set[str] = set()
+    for child_id, parent_id in nested_in.items():
+        if child_id not in alive or parent_id not in alive:
+            continue
+        child, parent = attributes.get(child_id), attributes.get(parent_id)
+        if child is None or parent is None or child.unavailable or parent.unavailable:
+            continue
+        if child.category in _STANDALONE_CATEGORIES and not matching.categories_compatible(child.category, parent.category):
+            continue
+        if matching.appearance_differs(child, parent):
+            continue
+        parts.add(child_id)
+    return parts
 
 
 def _overlapping_ids(detections: list[Detection], masks_by_id: dict[str, np.ndarray]) -> set[str]:
@@ -215,73 +275,36 @@ def _prepare_detection(
     mask: np.ndarray,
     is_fallback: bool,
     overlapping: bool,
-) -> tuple[_Prepared, Image.Image, Image.Image | None]:
+) -> tuple[_Prepared, Image.Image]:
     """CPU-side work for one detection, given its already-computed mask:
-    crop, quality-gate the cutout, save files, OCR, embed. Returns what the
-    vision step needs too."""
+    crop the seller's photo, OCR, embed. Returns what the vision step needs."""
     padded = image_io.pad_bbox(image.size, det.bbox.as_xyxy())
     original_crop = image_io.crop_bbox(image, padded)
-
     quality = image_io.assess_mask(mask, padded)
-    rejected = None
-    cutout: Image.Image | None = None
-    if is_fallback:
-        rejected = "segmentation_failed"
-    elif overlapping:
-        rejected = "overlaps_other_garment"
-    elif not quality.usable:
-        rejected = quality.rejected_reason
-    else:
-        refined = image_io.refine_mask_edges(mask, padded)
-        cutout = image_io.apply_mask(image, refined, padded)
 
     crop_rel = f"crops/{det.id}.jpg"
     image_io.save_image(original_crop, output_dir / crop_rel)
-    cutout_rel = None
-    if cutout is not None:
-        cutout_rel = f"cutouts/{det.id}.png"
-        image_io.save_image(cutout, output_dir / cutout_rel)
-
     images = DetectionImages(
         detection_id=det.id,
         image_id=det.image_id,
         original=original_rel_path,
         crop=crop_rel,
-        cutout=cutout_rel,
-        display=cutout_rel or crop_rel,
-        display_kind="cutout" if cutout_rel else "original",
-        cutout_rejected_reason=rejected,
+        display=crop_rel,
+        occluded=overlapping,
     )
 
-    # OCR reads labels best on the untouched crop (a cutout can whiten out
-    # the very tag we want to read when it hangs off the garment edge).
     texts, _confidence = ocr.extract_text_from_image(original_crop)
-    # Embeddings are computed on the cutout when we have a clean one (less
-    # background noise), otherwise on the crop.
-    embedding = embeddings.embed_garment(cutout if cutout is not None else original_crop)
+    # Matching was calibrated on embeddings of the garment with its
+    # background masked out, so that is still what it compares. This masked
+    # image exists only in memory for the embedding: it is never saved and
+    # never shown -- product images are always the seller's own photo.
+    if is_fallback or overlapping or not quality.usable:
+        embed_source = original_crop
+    else:
+        embed_source = image_io.apply_mask(image, image_io.refine_mask_edges(mask, padded), padded)
+    embedding = embeddings.embed_garment(embed_source)
 
-    return _Prepared(det, images, texts, embedding, quality), original_crop, cutout
-
-
-# A geometric mask-quality gate (coverage/holes/extent) catches an obviously
-# failed segmentation, but real messy-pile photos showed a further failure
-# mode it can't see: a mask that is geometrically solid (decent coverage, no
-# enclosed holes, wide extent) yet still looks torn, patchy, or missing a
-# visible chunk to a human -- e.g. a genuine gap in a twisted/folded garment
-# reading as part of its silhouette. No shape/color heuristic tried caught
-# this reliably without also flagging plenty of genuinely fine cutouts, so
-# the vision model -- which already looks at both images for every
-# detection anyway -- is asked to judge directly whether its own cutout is
-# presentable, and this downgrades it after the fact if not.
-def _downgrade_if_ai_flagged_incomplete(prepared: _Prepared, attrs: Attributes) -> None:
-    if attrs.cutout_looks_complete is not False:
-        return
-    images = prepared.images
-    if images.display_kind != "cutout":
-        return
-    images.display_kind = "original"
-    images.display = images.crop
-    images.cutout_rejected_reason = "ai_flagged_incomplete"
+    return _Prepared(det, images, texts, embedding, quality), original_crop
 
 
 def _single_detection_garment(index: int, prepared: _Prepared, attrs: Attributes) -> Garment:
@@ -306,16 +329,12 @@ def _single_detection_garment(index: int, prepared: _Prepared, attrs: Attributes
 
 
 def _quality_rank(prepared: _Prepared) -> tuple[float, float, float]:
-    """Higher means a clearer, more trustworthy photo of the garment. Used
-    both to pick which detection's cutout becomes the cover when a garment
-    matched across several photos has more than one clean one, and -- when
-    *none* of its photos produced a clean cutout -- to pick the original
-    crop that shows the garment most fully instead of just the first one
-    the seller happened to upload."""
+    """Higher means a clearer, fuller view of the garment: picks which of a
+    matched garment's photos becomes the cover instead of upload order."""
     q = prepared.quality
-    trustworthy = 0.0 if prepared.images.cutout_rejected_reason in _REVIEW_WORTHY_REASONS else 1.0
+    unoccluded = 0.0 if prepared.images.occluded else 1.0
     extent_score = q.coverage * q.extent_x * q.extent_y
-    return (trustworthy, extent_score, prepared.detection.detector_confidence)
+    return (unoccluded, extent_score, prepared.detection.detector_confidence)
 
 
 def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Garment:
@@ -324,30 +343,14 @@ def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Ga
     if not members:
         return garment
 
-    clean_cutouts = [m for m in members if m.images.display_kind == "cutout"]
-    if clean_cutouts:
-        # More than one photo of this garment produced a clean cutout --
-        # show whichever one most fully captures the garment, not simply
-        # whichever detection happened to come first.
-        cover = max(clean_cutouts, key=_quality_rank).images
-    else:
-        # No photo of this garment produced a clean cutout. The seller's
-        # own photo is always the honest fallback; when there are several
-        # to choose from, prefer the one where the garment is least
-        # occluded/cut off rather than defaulting to upload order.
-        cover = max(members, key=_quality_rank).images
-
+    cover = max(members, key=_quality_rank).images
     garment.display_image = cover.display
     garment.original_image = cover.original
 
-    # No photo of this garment gave us a trustworthy, unoccluded view of it
-    # -- the category/attributes were read off a partially hidden or
-    # visibly incomplete item, which is exactly the situation that produces
-    # a confidently wrong guess (a bunched sleeve or collar read as a hat).
-    # Flag it for the seller to double-check rather than presenting it as
-    # settled, even though the *matching* itself may have been perfectly
-    # confident.
-    if cover.cutout_rejected_reason in _REVIEW_WORTHY_REASONS:
+    # Every photo of this garment shows it partly hidden under another one,
+    # so its category/attributes were read off an incomplete view -- the
+    # situation that produces a confidently wrong guess. The seller decides.
+    if cover.occluded:
         garment.match_status = MatchStatus.NEEDS_REVIEW
 
     return garment
@@ -384,61 +387,26 @@ def run_pipeline(
         images_by_id[image_id] = image_io.load_image(path)
         original_rel_by_id[image_id] = f"originals/{path.name}"
 
-    # ---- Stage 1: detection (the detector is not thread-safe; sequential) ----
-    all_detections: list[Detection] = []
-    skipped_tiny = 0
-    for i, (image_id, image) in enumerate(images_by_id.items(), start=1):
-        for det in detection.detect_garments(image, image_id):
-            if _too_small(det, image):
-                skipped_tiny += 1
-                continue
-            all_detections.append(det)
-        report("detecting", i, len(images_by_id))
-
+    # ---- Stages 1-2, streamed photo by photo ----
+    # Each photo is detected, segmented (one SAM2 call for all its boxes),
+    # de-duplicated and handed to OCR/embedding/vision before the next photo
+    # is even looked at. Duplicates and overlaps only ever concern boxes in
+    # the same photo, so nothing is lost by not waiting for the others --
+    # and the vision calls, which are paced by the OpenAI rate limit, run
+    # while the CPU is still busy with the next photo instead of after it.
+    started = time.perf_counter()
     notes: list[str] = []
-    if not all_detections:
-        notes.append("Inga plagg hittades i bilderna.")
-    if skipped_tiny:
-        notes.append(f"Hoppade över {skipped_tiny} mycket små detektioner (lappar/brus).")
-
-    # Fixed for the rest of the "segmenting_extracting" stage's progress
-    # reporting, deliberately *before* deduplication below removes any
-    # duplicate detections -- the progress denominator must never shrink
-    # partway through a stage (it would show the bar jumping backwards).
-    # When duplicates exist the bar simply won't quite reach the far end of
-    # this stage before "finishing" takes over, which is a far smaller,
-    # rarer cosmetic gap than a stall or a jump back.
-    raw_total = len(all_detections)
-
-    # ---- Stage 1.5: segmentation for every detection, up front ----
-    # SAM2 calls are serialized process-wide already (segmentation.py holds
-    # a lock around every call, since the ultralytics model isn't
-    # thread-safe), so doing this as its own pass costs no real wall-clock
-    # parallelism versus interleaving it with OCR/vision as before -- what
-    # it buys is having *every* mask for a photo in hand before deciding
-    # which cutouts to trust, which is what makes real overlap detection
-    # (comparing masks, not just boxes) possible. Reported as the first half
-    # of the "segmenting_extracting" stage so the progress bar keeps moving
-    # smoothly straight through into attribute extraction.
+    skipped_tiny = 0
+    duplicates_dropped = 0
+    detections: list[Detection] = []
     masks_by_id: dict[str, np.ndarray] = {}
     fallback_by_id: dict[str, bool] = {}
-    for i, det in enumerate(all_detections, start=1):
-        mask, is_fallback = segmentation.segment_garment(images_by_id[det.image_id], det.bbox.as_xyxy())
-        masks_by_id[det.id] = mask
-        fallback_by_id[det.id] = is_fallback
-        report("segmenting_extracting", i, raw_total * 2)
-
-    all_detections, duplicate_notes = _drop_duplicate_detections(all_detections, masks_by_id, fallback_by_id)
-    notes.extend(duplicate_notes)
-    total = len(all_detections)
-
-    overlapping = _overlapping_ids(all_detections, masks_by_id)
-
-    # ---- Stage 2: per-detection work, CPU and network overlapped ----
+    nested_in: dict[str, str] = {}
     prepared_by_id: dict[str, _Prepared] = {}
     attributes: dict[str, Attributes] = {}
     state_lock = threading.Lock()
     done_count = 0
+    analysing = True
 
     def emit_partial() -> None:
         if not on_partial:
@@ -454,7 +422,7 @@ def run_pipeline(
             ]
             snapshot = PipelineResult(
                 garments=garments,
-                total_detections=total,
+                total_detections=len(detections),
                 total_images=len(image_paths),
                 notes=list(notes),
                 partial=True,
@@ -464,6 +432,7 @@ def run_pipeline(
 
     vision_pool = ThreadPoolExecutor(max_workers=max(1, SETTINGS.vision_concurrency), thread_name_prefix="vision")
     cpu_pool = ThreadPoolExecutor(max_workers=max(1, SETTINGS.cpu_workers), thread_name_prefix="cpu")
+    cpu_futures: list[Future] = []
     vision_futures: list[Future] = []
     vision_lock = threading.Lock()
 
@@ -476,18 +445,16 @@ def run_pipeline(
             attrs = Attributes(detection_id=det_id, category="unknown", unavailable=True)
         with state_lock:
             attributes[det_id] = attrs
-            prepared = prepared_by_id.get(det_id)
-            if prepared is not None:
-                _downgrade_if_ai_flagged_incomplete(prepared, attrs)
             done_count += 1
-            current = raw_total + done_count
-        report("segmenting_extracting", current, raw_total * 2)
+            current, total, still_analysing = done_count, len(detections), analysing
+        # While photos are still being analysed the bar tracks photos; the
+        # count of garments to read is only final once they all are.
+        if not still_analysing:
+            report("segmenting_extracting", current, total)
         emit_partial()
 
-    def cpu_task(det: Detection) -> None:
-        image = images_by_id[det.image_id]
-        is_overlapping = det.id in overlapping
-        prepared, original_crop, cutout = _prepare_detection(
+    def cpu_task(det: Detection, image: Image.Image, is_overlapping: bool) -> None:
+        prepared, original_crop = _prepare_detection(
             det,
             image,
             original_rel_by_id[det.image_id],
@@ -501,7 +468,6 @@ def run_pipeline(
         future = vision_pool.submit(
             vision_attributes.extract_attributes,
             original_crop,
-            cutout,
             prepared.ocr_texts,
             det.id,
             is_overlapping,
@@ -511,7 +477,35 @@ def run_pipeline(
             vision_futures.append(future)
 
     try:
-        cpu_futures = [cpu_pool.submit(cpu_task, det) for det in all_detections]
+        for i, (image_id, image) in enumerate(images_by_id.items(), start=1):
+            # The detector is not thread-safe; photos go through it in turn.
+            photo_detections = []
+            for det in detection.detect_garments(image, image_id):
+                if _too_small(det, image):
+                    skipped_tiny += 1
+                else:
+                    photo_detections.append(det)
+            segments = segmentation.segment_garments(image, [d.bbox.as_xyxy() for d in photo_detections])
+            for det, (mask, is_fallback) in zip(photo_detections, segments):
+                masks_by_id[det.id] = mask
+                fallback_by_id[det.id] = is_fallback
+
+            dedup = _drop_duplicate_detections(photo_detections, masks_by_id, fallback_by_id)
+            duplicates_dropped += dedup.dropped
+            nested_in.update(dedup.nested_in)
+            overlapping = _overlapping_ids(dedup.kept, masks_by_id)
+            with state_lock:
+                detections.extend(dedup.kept)
+            for det in dedup.kept:
+                cpu_futures.append(cpu_pool.submit(cpu_task, det, image, det.id in overlapping))
+            report("detecting", i, len(images_by_id))
+        analysed_at = time.perf_counter()
+
+        with state_lock:
+            analysing = False
+            current, total = done_count, len(detections)
+        report("segmenting_extracting", current, total)
+
         for future in cpu_futures:
             future.result()  # surface CPU-side errors (segmentation/IO) loudly
         with vision_lock:
@@ -521,6 +515,12 @@ def run_pipeline(
     finally:
         cpu_pool.shutdown(wait=True)
         vision_pool.shutdown(wait=True)
+    read_at = time.perf_counter()
+
+    if not detections:
+        notes.append("Inga plagg hittades i bilderna.")
+    if skipped_tiny:
+        notes.append(f"Hoppade över {skipped_tiny} mycket små detektioner (lappar/brus).")
 
     unavailable_count = sum(1 for a in attributes.values() if a.unavailable)
     if unavailable_count:
@@ -538,7 +538,18 @@ def run_pipeline(
         notes.append(
             f"Tog bort {len(not_garment_ids)} detektion(er) som inte var plagg (t.ex. en prislapp eller etikett)."
         )
-    kept = [d for d in all_detections if d.id not in not_garment_ids and d.id in prepared_by_id]
+    alive = {d.id for d in detections if d.id not in not_garment_ids and d.id in prepared_by_id}
+    parts = _parts_of_bigger_garments(nested_in, attributes, alive)
+    duplicates_dropped += len(parts)
+    if duplicates_dropped:
+        notes.append(f"Slog ihop {duplicates_dropped} dubblettdetektion(er) av samma plagg i en bild.")
+    kept = [d for d in detections if d.id in alive and d.id not in parts]
+
+    # Occlusion is re-judged on the final set: a garment is not "partly
+    # hidden" by its own sleeve or by a price tag that turned out to be one.
+    final_overlap = _overlapping_ids(kept, masks_by_id)
+    for det in kept:
+        prepared_by_id[det.id].images.occluded = det.id in final_overlap
 
     # ---- Stage 3: matching + Swedish listing copy ----
     report("finishing", 0, 2)
@@ -567,6 +578,12 @@ def run_pipeline(
         processed_detections=len(kept),
     )
     (output_dir / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    finished_at = time.perf_counter()
+    print(
+        f"[pipeline] {len(image_paths)} photo(s), {len(detections)} detection(s), {len(garments)} garment(s): "
+        f"analyse {analysed_at - started:.0f}s, read {read_at - analysed_at:.0f}s, "
+        f"match+copy {finished_at - read_at:.0f}s, total {finished_at - started:.0f}s"
+    )
     return result
 
 
