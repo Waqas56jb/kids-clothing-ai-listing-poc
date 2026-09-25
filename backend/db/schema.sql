@@ -217,7 +217,7 @@ alter table public.order_items add column if not exists stripe_transfer_id text;
 alter table public.order_items add column if not exists transfer_status text not null default 'not_applicable';
 alter table public.order_items drop constraint if exists order_items_transfer_status_check;
 alter table public.order_items add constraint order_items_transfer_status_check
-  check (transfer_status in ('not_applicable', 'pending', 'pending_onboarding', 'transferred', 'failed', 'reversed'));
+  check (transfer_status in ('not_applicable', 'pending', 'pending_onboarding', 'transferred', 'failed', 'reversed', 'cancelled'));
 alter table public.order_items add column if not exists refunded_amount int not null default 0;
 alter table public.order_items drop constraint if exists order_items_status_check;
 alter table public.order_items add constraint order_items_status_check
