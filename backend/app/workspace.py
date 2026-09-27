@@ -210,8 +210,9 @@ def seed_workspace(job_id: str, result: PipelineResult | dict | None) -> dict[st
     pricing screen alone calls this several times per job), so it must be
     cheap once a job has already been seeded -- write to the database only
     when something was actually newly added, not on every read."""
-    garments = garments_from_result(result)
     current = db.get_workspace(job_id)
+    removed_garments = set(current.get("removed_garments") or [])
+    garments = [g for g in garments_from_result(result) if g["id"] not in removed_garments]
     had_groups = bool(current.get("groups"))
     groups = current.get("groups") or compute_groups(garments)
     listings = dict(current.get("listings") or {})
@@ -257,6 +258,9 @@ def apply_to_result(result: dict[str, Any] | None, workspace: dict[str, Any] | N
     edits = workspace.get("garment_edits") or {}
     decisions = workspace.get("match_decisions") or {}
     removed = workspace.get("removed_images") or {}
+    removed_garments = set(workspace.get("removed_garments") or [])
+    if removed_garments:
+        result["garments"] = [g for g in result.get("garments") or [] if g.get("id") not in removed_garments]
     for garment in result.get("garments") or []:
         extra = edits.get(garment.get("id")) or {}
         for field in EDITABLE_FIELDS:
@@ -288,65 +292,51 @@ def _drop_images(garment: dict[str, Any], gone: set[str]) -> None:
 
 
 def remove_garment_image(job_id: str, garment_id: str, detection_id: str, current: list[str]) -> dict[str, Any]:
-    """Record a deleted image; refuses to delete the last remaining one."""
+    """Record a deleted image. Deleting a garment's last image removes the
+    garment itself from the batch -- the seller's way of saying "this is not
+    a garment of its own" (a print close-up, a sleeve, a second photo of
+    something already listed)."""
     workspace = db.get_workspace(job_id)
     removed = dict(workspace.get("removed_images") or {})
     already = set(removed.get(garment_id) or [])
-    remaining = [det_id for det_id in current if det_id not in already and det_id != detection_id]
-    if not remaining:
-        raise ValueError("Ett plagg måste ha minst en bild kvar.")
     already.add(detection_id)
     removed[garment_id] = sorted(already)
-    return db.set_workspace(job_id, {**workspace, "removed_images": removed})
+    workspace = {**workspace, "removed_images": removed}
+    if not [det_id for det_id in current if det_id not in already]:
+        workspace = _without_garment(job_id, workspace, garment_id)
+    return db.set_workspace(job_id, workspace)
 
 
-def mutate_pricing(job_id: str, pricing_id: str, action: str, actor: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    workspace = db.get_workspace(job_id)
+def _without_garment(job_id: str, workspace: dict[str, Any], garment_id: str) -> dict[str, Any]:
+    """Drop a removed garment from packages and pricing so it can't be
+    priced, packaged or published any more."""
+    removed_garments = sorted(set(workspace.get("removed_garments") or []) | {garment_id})
     pricing = dict(workspace.get("pricing") or {})
-    record = pricing.get(pricing_id)
-    if not record:
-        raise KeyError(pricing_id)
-    history = dict(workspace.get("pricing_history") or {})
-    entries = list(history.get(pricing_id) or [])
-    previous = record.get("finalPrice")
-    payload = payload or {}
-    now = _now()
-    if action == "approve":
-        record["status"] = "approved"
-        record["finalPrice"] = record.get("recommendedPrice")
-        reason = "Godkände AI:s prisförslag"
-    elif action == "reject":
-        record["status"] = "rejected"
-        record["finalPrice"] = None
-        reason = payload.get("note") or "Avvisade AI:s prisförslag"
-    else:
-        if payload.get("minPrice") is not None:
-            record["minPrice"] = payload["minPrice"]
-        if payload.get("maxPrice") is not None:
-            record["maxPrice"] = payload["maxPrice"]
-        if payload.get("finalPrice") is not None:
-            record["finalPrice"] = payload["finalPrice"]
-        record["status"] = "manually_adjusted"
-        reason = payload.get("note") or "Manuell prisjustering"
-    record["adjustedBy"] = actor
-    record["adjustedAt"] = now
-    if payload.get("note"):
-        record["note"] = payload["note"]
-    pricing[pricing_id] = record
-    entries.append(
-        {
-            "id": f"{pricing_id}:{len(entries)}",
-            "pricingId": pricing_id,
-            "changedBy": actor,
-            "date": now,
-            "previousPrice": previous,
-            "newPrice": record.get("finalPrice"),
-            "reason": reason,
-        }
-    )
-    history[pricing_id] = entries
-    db.set_workspace(job_id, {**workspace, "pricing": pricing, "pricing_history": history})
-    return record
+    pricing.pop(f"garment:{job_id}:{garment_id}", None)
+    listings = dict(workspace.get("listings") or {})
+    listings.pop(garment_id, None)
+
+    groups = dict(workspace.get("groups") or {})
+    kept_groups: list[dict[str, Any]] = []
+    ungrouped = [gid for gid in groups.get("ungrouped") or [] if gid != garment_id]
+    for group in groups.get("groups") or []:
+        members = [gid for gid in group.get("garmentIds") or [] if gid != garment_id]
+        key = f"group:{job_id}:{group['id']}"
+        if len(members) < 2:
+            # A package of one is not a package.
+            ungrouped.extend(members)
+            pricing.pop(key, None)
+            continue
+        if len(members) != len(group.get("garmentIds") or []):
+            group = {**group, "garmentIds": members}
+            # Re-price a shrunk package unless the seller already set its price.
+            if (pricing.get(key) or {}).get("status") not in ("approved", "manually_adjusted"):
+                pricing[key] = _group_pricing(job_id, group)
+        kept_groups.append(group)
+    if groups:
+        groups = {**groups, "groups": kept_groups, "ungrouped": ungrouped}
+
+    return {**workspace, "removed_garments": removed_garments, "pricing": pricing, "listings": listings, "groups": groups}
 
 
 def list_all_pricing() -> list[dict[str, Any]]:

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteGarmentImage, fileUrl, getJob, patchWorkspace } from '../../api'
@@ -64,6 +64,7 @@ function FieldInput({ field, value, onChange }) {
 
 export default function DetectionReviewPage() {
   const { jobId, detectionId } = useParams()
+  const navigate = useNavigate()
   const [job, setJob] = useState(null)
   const [form, setForm] = useState(null)
 
@@ -117,26 +118,33 @@ export default function DetectionReviewPage() {
                   <img src={fileUrl(jobId, detectionImagePath(garment, id))} alt="" className="h-full w-full object-contain p-1" />
                 </div>
                 <p className="mt-1.5 truncate text-center font-mono text-[10px] text-slate-400">{id}</p>
-                {garment.detection_ids.length > 1 && (
-                  <button
-                    type="button"
-                    title="Ta bort bild"
-                    aria-label="Ta bort bild"
-                    onClick={async () => {
-                      if (!window.confirm('Ta bort den här bilden från plagget?')) return
-                      try {
-                        const data = await deleteGarmentImage(jobId, garment.id, id)
-                        setJob(data)
-                        toast.success('Bilden är borttagen.')
-                      } catch (err) {
-                        toast.error(err.message || 'Kunde inte ta bort bilden')
+                <button
+                  type="button"
+                  title="Ta bort bild"
+                  aria-label="Ta bort bild"
+                  onClick={async () => {
+                    const isLast = garment.detection_ids.length <= 1
+                    const question = isLast
+                      ? 'Det här är plaggets sista bild. Tar du bort den tas hela plagget bort från omgången. Fortsätta?'
+                      : 'Ta bort den här bilden från plagget?'
+                    if (!window.confirm(question)) return
+                    try {
+                      const data = await deleteGarmentImage(jobId, garment.id, id)
+                      if (!data.result?.garments.some((g) => g.id === garment.id)) {
+                        toast.success('Plagget är borttaget.')
+                        navigate(-1)
+                        return
                       }
-                    }}
-                    className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 opacity-0 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+                      setJob(data)
+                      toast.success('Bilden är borttagen.')
+                    } catch (err) {
+                      toast.error(err.message || 'Kunde inte ta bort bilden')
+                    }
+                  }}
+                  className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>

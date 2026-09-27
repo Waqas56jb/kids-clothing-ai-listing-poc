@@ -166,7 +166,11 @@ def _job_summary(job: jobs.Job) -> dict:
         "error": job.error,
         "created_at": job.created_at,
         "image_count": job.image_count,
-        "garment_count": len(job.result.garments) if job.result else None,
+        "garment_count": (
+            len([g for g in job.result.garments if g.id not in set((job.workspace or {}).get("removed_garments") or [])])
+            if job.result
+            else None
+        ),
         "user_id": job.user_id,
     }
 

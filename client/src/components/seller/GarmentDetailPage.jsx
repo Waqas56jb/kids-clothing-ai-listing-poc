@@ -134,14 +134,21 @@ export default function GarmentDetailPage() {
   }
 
   async function handleDeleteImage(detectionId) {
-    if (!window.confirm('Ta bort den här bilden från plagget? Den visas då inte i annonsen.')) return
+    const isLast = garment.detection_ids.length <= 1
+    const question = isLast
+      ? 'Det här är plaggets sista bild. Tar du bort den tas hela plagget bort från omgången – till exempel om det inte är ett eget plagg. Vill du fortsätta?'
+      : 'Ta bort den här bilden från plagget? Den visas då inte i annonsen.'
+    if (!window.confirm(question)) return
     try {
       const data = await deleteGarmentImage(jobId, garment.id, detectionId)
       const refreshed = data.result?.garments.find((g) => g.id === garment.id)
-      if (refreshed) {
-        setJob(data)
-        setGarment(refreshed)
+      if (!refreshed) {
+        toast.success('Plagget är borttaget.')
+        navigate(`/results/${jobId}`, { replace: true })
+        return
       }
+      setJob(data)
+      setGarment(refreshed)
       toast.success('Bilden är borttagen.')
     } catch (err) {
       toast.error(err.message || 'Kunde inte ta bort bilden')
@@ -244,17 +251,15 @@ export default function GarmentDetailPage() {
                       className="h-full w-full object-contain p-2"
                     />
                   </button>
-                  {garment.detection_ids.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteImage(id)}
-                      aria-label="Ta bort bild"
-                      title="Ta bort bild"
-                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 opacity-0 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteImage(id)}
+                    aria-label="Ta bort bild"
+                    title="Ta bort bild"
+                    className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow-soft transition hover:bg-rose-600 hover:text-white focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                   {!showOriginal && variant?.occluded && (
                     <p className="border-t border-slate-100 px-2 py-1.5 text-[11px] text-slate-400">
                       Delvis dolt av ett annat plagg
@@ -274,8 +279,8 @@ export default function GarmentDetailPage() {
           />
           <p className="mt-2 text-xs text-slate-400">
             {garment.images.length} {plural(garment.images.length, 'bild', 'bilder')} matchade till det här plagget.
-            Bilderna är dina egna foton – AI:n ändrar dem aldrig. Håll muspekaren över en bild för att ta bort den om den
-            inte hör hit.
+            Bilderna är dina egna foton – AI:n ändrar dem aldrig. Ta bort en bild med papperskorgen om den inte hör hit – tar du bort den sista
+            bilden tas hela plagget bort.
           </p>
         </div>
 
