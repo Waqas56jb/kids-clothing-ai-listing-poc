@@ -20,6 +20,7 @@ const KIND_TONE = {
   offer_declined: 'bg-rose-50 text-rose-700',
   message: 'bg-sand text-ink',
   order_shipped: 'bg-brand-50 text-brand-700',
+  ai_unavailable: 'bg-rose-50 text-rose-700',
 }
 
 export default function NotificationsPage() {

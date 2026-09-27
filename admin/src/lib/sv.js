@@ -145,6 +145,7 @@ export const NOTIFICATION_KIND_SV = {
   order_shipped: 'Skickat',
   refund: 'Återbetalning',
   payment_failed: 'Betalning misslyckades',
+  ai_unavailable: 'AI-tjänsten',
 }
 
 export function orderStatusLabel(key) {

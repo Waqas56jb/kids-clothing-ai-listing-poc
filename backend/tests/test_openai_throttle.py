@@ -134,3 +134,55 @@ def test_other_errors_are_not_retried():
 
 def test_default_retries_come_from_settings():
     assert openai_throttle.SETTINGS.openai_max_retries >= 1
+
+
+# ---- An account out of credits: fail fast, don't retry ----
+# Error body exactly as OpenAI returned it on production, 2026-09-28.
+_NO_CREDITS = {"error": {"message": "You have no credits remaining. Add credits to continue using the API at "
+                                    "https://platform.openai.com/settings/organization/billing/.",
+                         "type": "insufficient_quota", "param": None, "code": "credit_balance_exhausted"}}
+
+
+def _no_credits_error():
+    response = httpx.Response(429, request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"))
+    return RateLimitError(f"Error code: 429 - {_NO_CREDITS}", response=response, body=_NO_CREDITS)
+
+
+@pytest.fixture(autouse=False)
+def fresh_quota(monkeypatch):
+    monkeypatch.setattr(openai_throttle, "_quota_blocked_until", 0.0)
+
+
+def test_no_credits_is_told_apart_from_a_rate_limit():
+    assert openai_throttle.is_quota_error(_no_credits_error())
+    assert not openai_throttle.is_quota_error(_rate_limit_error())
+
+
+def test_no_credits_fails_at_once_without_retrying(fresh_quota):
+    calls, sleeps = {"n": 0}, []
+
+    def broke():
+        calls["n"] += 1
+        raise _no_credits_error()
+
+    with pytest.raises(openai_throttle.QuotaExhausted):
+        call_with_rate_limit_retry(broke, max_retries=6, sleep=sleeps.append)
+    assert calls["n"] == 1 and sleeps == []
+
+
+def test_after_no_credits_the_rest_of_the_batch_fails_without_calling_openai(fresh_quota):
+    def broke():
+        raise _no_credits_error()
+
+    with pytest.raises(openai_throttle.QuotaExhausted):
+        call_with_rate_limit_retry(broke, max_retries=6, sleep=lambda s: None)
+    called = []
+    with pytest.raises(openai_throttle.QuotaExhausted):
+        call_with_rate_limit_retry(lambda: called.append(1), max_retries=6, sleep=lambda s: None)
+    assert called == []
+
+
+def test_the_block_lifts_by_itself_once_credits_are_back(monkeypatch, fresh_quota):
+    monkeypatch.setattr(openai_throttle, "_quota_blocked_until", 0.0)
+    assert not openai_throttle.quota_exhausted()
+    assert call_with_rate_limit_retry(lambda: "ok", max_retries=1, sleep=lambda s: None) == "ok"

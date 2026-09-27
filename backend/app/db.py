@@ -144,6 +144,11 @@ def fetch_profile(user_id: str, access_token: str | None = None) -> dict[str, An
     return dict(row) if row else None
 
 
+def list_admin_ids() -> list[str]:
+    rows = _pg_execute("select id from public.profiles where role = 'admin'", fetch="all")
+    return [str(row["id"]) for row in (rows or [])]
+
+
 def fetch_profile_by_email(email: str) -> dict[str, Any] | None:
     row = _pg_execute(
         "select * from public.profiles where lower(email) = lower(%s)",

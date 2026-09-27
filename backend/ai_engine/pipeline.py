@@ -11,7 +11,7 @@ from typing import Callable
 import numpy as np
 from PIL import Image
 
-from ai_engine import detection, embeddings, listing_copy, matching, ocr, segmentation, vision_attributes
+from ai_engine import detection, embeddings, listing_copy, matching, ocr, openai_throttle, segmentation, vision_attributes
 from ai_engine.config import SETTINGS
 from ai_engine.schemas import (
     AttributeConfidence,
@@ -26,6 +26,11 @@ from ai_engine.utils import image_io
 
 ProgressCallback = Callable[[str, int, int], None]
 PartialCallback = Callable[[PipelineResult], None]
+
+
+class AiUnavailable(RuntimeError):
+    """No garment could be read because the AI service refused every call
+    (the OpenAI account is out of credits). The message is the seller's."""
 
 # Two detections in the same photo whose *segmentation masks* actually share
 # pixels are garments lying on top of / touching each other, so part of each
@@ -356,6 +361,17 @@ def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Ga
     return garment
 
 
+def _raise_if_nothing_was_read(attributes: dict[str, Attributes], quota_failures: int) -> None:
+    """Nothing was read because the account is out of credits: a batch of
+    "unknown", unmatched garments would only have to be deleted again, so
+    stop with an honest message instead."""
+    if attributes and quota_failures and all(a.unavailable for a in attributes.values()):
+        raise AiUnavailable(
+            "AI-tjänsten är inte tillgänglig just nu, så inga plagg kunde läsas av. Försök igen senare – "
+            "vi har meddelat administratören."
+        )
+
+
 def run_pipeline(
     input_dir: Path,
     output_dir: Path,
@@ -406,6 +422,7 @@ def run_pipeline(
     attributes: dict[str, Attributes] = {}
     state_lock = threading.Lock()
     done_count = 0
+    quota_failures = 0
     analysing = True
 
     def emit_partial() -> None:
@@ -438,10 +455,15 @@ def run_pipeline(
 
     def on_vision_done(det_id: str, future: Future) -> None:
         nonlocal done_count
+        nonlocal quota_failures
         try:
             attrs = future.result()
         except Exception as exc:  # noqa: BLE001 -- one bad call must not sink the batch
-            print(f"[pipeline] vision failed for {det_id}: {exc}")
+            if isinstance(exc, openai_throttle.QuotaExhausted):
+                with state_lock:
+                    quota_failures += 1
+            else:
+                print(f"[pipeline] vision failed for {det_id}: {exc}")
             attrs = Attributes(detection_id=det_id, category="unknown", unavailable=True)
         with state_lock:
             attributes[det_id] = attrs
@@ -523,10 +545,13 @@ def run_pipeline(
         notes.append(f"Hoppade över {skipped_tiny} mycket små detektioner (lappar/brus).")
 
     unavailable_count = sum(1 for a in attributes.values() if a.unavailable)
+    if quota_failures:
+        print(f"[pipeline] OpenAI account out of credits: {quota_failures} of {len(attributes)} garment(s) unread")
+    _raise_if_nothing_was_read(attributes, quota_failures)
     if unavailable_count:
         notes.append(
-            f"AI-tjänsten kunde inte läsa av {unavailable_count} plagg (tillfälligt fel). De visas som egna plagg "
-            "markerade för granskning i stället för att matchas mot andra bilder."
+            f"AI-tjänsten kunde inte läsa av {unavailable_count} plagg. De visas som egna plagg markerade för "
+            "granskning i stället för att matchas mot andra bilder."
         )
 
     # A detector proposal that turns out to be a hang tag, label, or stray

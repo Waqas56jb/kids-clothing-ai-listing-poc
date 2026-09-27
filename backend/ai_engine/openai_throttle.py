@@ -135,6 +135,40 @@ def retry_after_seconds(exc: BaseException) -> float | None:
     return None
 
 
+class QuotaExhausted(RuntimeError):
+    """The OpenAI account has no credits left. Unlike a rate limit, waiting
+    does not help -- only topping up the account does."""
+
+
+# OpenAI sends "no credits" as an HTTP 429 like a rate limit; told apart by
+# its error code. Retrying it six times with back-off cost ~55 s per garment
+# for nothing (measured on the client's 59-garment batches, 2026-09-26/27).
+_QUOTA_CODES = {"insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached"}
+_QUOTA_BLOCK_SECONDS = 60.0
+_quota_lock = threading.Lock()
+_quota_blocked_until = 0.0
+
+
+def is_quota_error(exc: BaseException) -> bool:
+    body = getattr(exc, "body", None)
+    error = body.get("error", body) if isinstance(body, dict) else {}
+    codes = {getattr(exc, "code", None), getattr(exc, "type", None)}
+    if isinstance(error, dict):
+        codes |= {error.get("code"), error.get("type")}
+    return bool(codes & _QUOTA_CODES) or any(code in str(exc) for code in _QUOTA_CODES)
+
+
+def quota_exhausted(clock: Callable[[], float] = time.monotonic) -> bool:
+    with _quota_lock:
+        return clock() < _quota_blocked_until
+
+
+def _block_for_quota(clock: Callable[[], float] = time.monotonic) -> None:
+    global _quota_blocked_until
+    with _quota_lock:
+        _quota_blocked_until = clock() + _QUOTA_BLOCK_SECONDS
+
+
 def call_with_rate_limit_retry(
     fn: Callable[[], T],
     *,
@@ -144,9 +178,16 @@ def call_with_rate_limit_retry(
 ) -> T:
     attempts = SETTINGS.openai_max_retries if max_retries is None else max_retries
     for attempt in range(attempts + 1):
+        # Once the account is known to be out of credits, the rest of the
+        # batch fails straight away instead of each call finding out again.
+        if quota_exhausted():
+            raise QuotaExhausted("OpenAI-kontot saknar krediter")
         try:
             return fn()
         except RateLimitError as exc:
+            if is_quota_error(exc):
+                _block_for_quota()
+                raise QuotaExhausted(str(exc)) from exc
             if attempt >= attempts:
                 raise
             wait = retry_after_seconds(exc)

@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Literal
 
 from ai_engine import pipeline as pipeline_mod
-from ai_engine.pipeline import run_pipeline
+from ai_engine.pipeline import AiUnavailable, run_pipeline
 from ai_engine.schemas import PipelineResult
 
-from app import blobstore, db, workspace as workspace_mod
+from app import blobstore, db, notifications, workspace as workspace_mod
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_ROOT = BACKEND_ROOT / "uploads"
@@ -21,6 +21,25 @@ OUTPUT_ROOT = BACKEND_ROOT / "job_outputs"
 # 20-30 photos per batch is the product target; 40 is the hard cap so one
 # oversized request can't tie up the single worker for an hour.
 MAX_IMAGES_PER_JOB = 40
+
+def _alert_admins_ai_unavailable(job_id: str) -> None:
+    """The seller only sees "try again later"; the people running the
+    platform need to know the real reason and what fixes it."""
+    try:
+        admin_ids = db.list_admin_ids()
+    except Exception as exc:  # noqa: BLE001 -- an alert must never mask the job's own error
+        print(f"[jobs] could not list admins for AI alert: {exc}")
+        return
+    for admin_id in admin_ids:
+        notifications.notify(
+            admin_id,
+            "ai_unavailable",
+            "AI-tjänsten har slutat svara",
+            "OpenAI-kontot saknar krediter, så inga plagg kan läsas av. Fyll på krediter på "
+            "platform.openai.com (Settings → Billing); inget annat behöver göras.",
+            data={"job_id": job_id},
+        )
+
 
 JobStatus = Literal["queued", "processing", "done", "error"]
 
@@ -262,6 +281,8 @@ def _run_job(job: Job, input_dir: Path) -> None:
         job.error = str(exc)
         job.status = "error"
         _persist(job, required=True)
+        if isinstance(exc, AiUnavailable):
+            _alert_admins_ai_unavailable(job.id)
     finally:
         if job.scratch_dir:
             shutil.rmtree(job.scratch_dir, ignore_errors=True)
