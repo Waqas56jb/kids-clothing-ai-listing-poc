@@ -53,19 +53,27 @@ def test_identical_category_and_high_embedding_merge_with_high_confidence():
     assert garment.match_status == MatchStatus.NEEDS_REVIEW
 
 
-def test_different_known_categories_never_merge():
-    attr_a = make_attributes("d1", category="jacket")
-    attr_b = make_attributes("d2", category="trousers")
-    assert is_vetoed(attr_a, attr_b) is True
-
+def test_a_category_disagreement_counts_against_a_match_but_does_not_veto_it():
+    # The vision model names the same garment differently from photo to
+    # photo (measured: trousers read as "sweatshirt"), so a disagreement is
+    # evidence, not proof. An accessory against a garment is never noise.
     emb = np.array([1.0, 0.0])
-    score = pairwise_score(attr_a, attr_b, emb, emb, [], [])
-    assert score == 0.0
+    jacket, trousers, other_jacket = (make_attributes("d1", category="jacket"), make_attributes("d2", category="trousers"),
+                                      make_attributes("d3", category="jacket"))
+    assert is_vetoed(jacket, trousers) is False
+    assert pairwise_score(jacket, trousers, emb, emb, [], [], reshoot=True) < pairwise_score(jacket, other_jacket, emb, emb, [], [], reshoot=True)
+    assert pairwise_score(jacket, trousers, emb, emb, [], []) == 0.0  # unrelated photos: strict
+    hat = make_attributes("d4", category="hat")
+    assert is_vetoed(hat, trousers) is True
+    assert pairwise_score(hat, trousers, emb, emb, [], [], reshoot=True) == 0.0
 
+
+def test_two_detections_in_the_same_photo_never_merge():
+    attr_a = make_attributes("d1", category="jacket")
+    attr_b = make_attributes("d2", category="jacket")
+    emb = np.array([1.0, 0.0])
     det_a, det_b = make_detection("d1", "img1"), make_detection("d2", "img1")
-    garments = build_garments(
-        [det_a, det_b], {"d1": attr_a, "d2": attr_b}, {"d1": emb, "d2": emb}, {"d1": [], "d2": []}
-    )
+    garments = build_garments([det_a, det_b], {"d1": attr_a, "d2": attr_b}, {"d1": emb, "d2": emb}, {"d1": [], "d2": []})
     assert len(garments) == 2
 
 

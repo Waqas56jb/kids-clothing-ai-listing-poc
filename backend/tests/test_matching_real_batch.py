@@ -46,11 +46,47 @@ def test_the_same_cream_hat_called_white_and_beige_can_still_match():
     assert not is_vetoed(attrs("a", "hat", "vit med prickar"), attrs("b", "hat", "beige med prickar"))
 
 
-def test_genuinely_different_colours_and_garment_kinds_still_veto():
+def test_genuinely_different_colours_prints_and_accessories_still_veto():
     assert is_vetoed(attrs("a", "bodysuit", "vit"), attrs("b", "bodysuit", "rosa"))
-    assert is_vetoed(attrs("a", "bodysuit", "vit"), attrs("b", "trousers", "vit"))
     assert is_vetoed(attrs("a", "hat", "vit"), attrs("b", "bodysuit", "vit"))
     assert is_vetoed(attrs("a", "hat", "vit med prickar"), attrs("b", "hat", "vit med ränder"))
+    assert is_vetoed(attrs("a", "bodysuit", "vit"), attrs("b", "bodysuit", "gul"))
+
+
+def test_in_a_reshoot_a_different_garment_kind_counts_against_but_does_not_veto():
+    from ai_engine.matching import pairwise_score
+
+    emb = np.array([1.0, 0.0])
+    score = lambda a, b: pairwise_score(a, b, emb, emb, [], [], reshoot=True)  # noqa: E731
+    same = score(attrs("a", "bodysuit", "vit"), attrs("b", "bodysuit", "vit"))
+    other = score(attrs("a", "bodysuit", "vit"), attrs("b", "trousers", "vit"))
+    vague = score(attrs("a", "bodysuit", "vit"), attrs("b", "top", "vit"))
+    assert 0 < other < vague < same
+
+
+def test_between_unrelated_photos_a_category_or_wording_clash_still_vetoes():
+    # 12 different product photos: the lenient rules made 5 wrong merges.
+    from ai_engine.matching import pairwise_score
+
+    emb = np.array([1.0, 0.0])
+    assert pairwise_score(attrs("a", "bodysuit", "vit"), attrs("b", "trousers", "vit"), emb, emb, [], []) == 0.0
+    loose = pairwise_score(attrs("a", "dress", "flerfärgad geometrisk"), attrs("b", "dress", "blommig"), emb, emb, [], [])
+    same = pairwise_score(attrs("a", "dress", "blommig"), attrs("b", "dress", "blommig"), emb, emb, [], [])
+    assert loose < same
+
+
+def test_a_reshoot_is_recognised_only_when_several_garments_clearly_reappear():
+    from ai_engine.matching import _reshoot_pairs
+
+    rng = np.random.default_rng(1)
+    garments = [rng.normal(size=16) for _ in range(5)]
+    noise = lambda v: v + rng.normal(scale=0.05, size=16)  # noqa: E731
+    pile = {"p0": ["p0_a", "p0_b", "p0_c", "p0_d", "p0_e"], "p1": ["p1_a", "p1_b", "p1_c", "p1_d", "p1_e"],
+            "solo1": ["solo1_x"], "solo2": ["solo2_x"]}
+    emb = {f"p{i}_{c}": noise(garments[k]) for i in (0, 1) for k, c in enumerate("abcde")}
+    emb["solo1_x"] = garments[0]
+    emb["solo2_x"] = noise(garments[0])  # same-looking single shots: not enough to call a re-shoot
+    assert _reshoot_pairs(pile, emb) == {frozenset(("p0", "p1"))}
 
 
 def test_the_giraffe_and_romper_come_out_as_separate_complete_listings():

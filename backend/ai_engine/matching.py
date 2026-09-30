@@ -10,16 +10,20 @@ from ai_engine.config import SETTINGS
 from ai_engine.embeddings import cosine_similarity
 from ai_engine.schemas import AttributeConfidence, Attributes, Detection, Garment, MatchStatus
 
-# Tunable signal weights for the pairwise match score. Embedding similarity
-# carries the most weight since it's the only signal that works even when
-# attribute extraction is unavailable (no OpenAI key); structured attributes
-# and OCR text add corroborating/contradicting evidence on top of it.
+# Signal weights for the pairwise match score. Embedding similarity carries
+# the most weight; the vision model's category is *evidence*, not a veto --
+# measured on a client's 15-garment pile photographed 4 times, the same
+# garment came back as "bodysuit" and "top", "dress" and "top", "trousers"
+# and "sweatshirt", and a partial crop of leggings as "top": as a hard veto
+# that split 8 garments and mixed 4 listings (20 listings for 15 garments).
+# Colour and print, by contrast, were read the same in every photo.
 WEIGHTS = {
     "embedding": 0.55,
+    "category": 0.15,
     "color": 0.15,
-    "brand": 0.15,
-    "size": 0.10,
-    "ocr": 0.05,
+    "brand": 0.07,
+    "size": 0.05,
+    "ocr": 0.03,
 }
 
 # Above this raw embedding similarity, two crops look near-identical enough
@@ -68,12 +72,40 @@ _CATEGORY_GROUPS = (
 )
 _WILDCARD_CATEGORIES = {None, "unknown", "other"}
 
+# The model's fallback when unsure: counts as half-agreement with anything.
+_VAGUE_CATEGORIES = {"top", "accessory"}
+
+# A hat, a sock or a mitten is never a piece of clothing of another kind;
+# that is the one category disagreement that is not naming noise, so it
+# still vetoes a match outright.
+_ACCESSORY_KIND = {
+    "hat": "head", "beanie": "head", "socks": "feet", "shoes": "feet", "mittens": "hands", "scarf": "neck",
+}
+
 
 def categories_compatible(a: str | None, b: str | None) -> bool:
     a, b = _normalize(a), _normalize(b)
     if a in _WILDCARD_CATEGORIES or b in _WILDCARD_CATEGORIES or a == b:
         return True
     return any(a in group and b in group for group in _CATEGORY_GROUPS)
+
+
+def category_score(a: str | None, b: str | None) -> float:
+    """1.0 same kind of garment, 0.5 when either is a wildcard or the vague
+    "top", 0.0 when they plainly disagree (still just evidence)."""
+    a, b = _normalize(a), _normalize(b)
+    if a in _WILDCARD_CATEGORIES or b in _WILDCARD_CATEGORIES:
+        return 0.5
+    if categories_compatible(a, b):
+        return 1.0
+    if a in _VAGUE_CATEGORIES or b in _VAGUE_CATEGORIES:
+        return 0.5
+    return 0.0
+
+
+def kinds_incompatible(a: str | None, b: str | None) -> bool:
+    kind_a, kind_b = _ACCESSORY_KIND.get(_normalize(a) or ""), _ACCESSORY_KIND.get(_normalize(b) or "")
+    return (kind_a or kind_b) is not None and kind_a != kind_b
 
 
 # Print/motif words in the vision model's Swedish colour text. Two garments
@@ -144,6 +176,17 @@ def colors_compatible(family_a: str | None, family_b: str | None) -> bool:
     return frozenset({family_a, family_b}) in _BRIDGED_COLORS
 
 
+# Colour families a garment can plausibly be read as in different light --
+# the same dusty-pink velour trousers came back "beige" in one photo and
+# "ljusrosa" in the other three. A neighbour is a partial match; anything
+# further apart (pink vs blue, white vs yellow) still vetoes.
+_NEIGHBOUR_COLORS = _BRIDGED_COLORS | {
+    frozenset(pair)
+    for pair in [("beige", "pink"), ("pink", "red"), ("pink", "purple"), ("grey", "white"), ("grey", "black"),
+                 ("blue", "green"), ("yellow", "orange"), ("yellow", "beige")]
+}
+
+
 def primary_color(text: str | None) -> str | None:
     """Canonical color family of the first color word in a free-text color,
     or None when unknown / multicolored (which never vetoes)."""
@@ -174,18 +217,18 @@ def _field_score(a: str | None, b: str | None) -> float:
     return 1.0 if norm_a == norm_b else 0.0
 
 
-def _color_score(a: str | None, b: str | None) -> float:
-    # The same print named in both ("blommig" / "vit med blommigt mönster")
-    # is strong agreement even when the wording differs.
+def color_score(a: str | None, b: str | None) -> float | None:
+    """1.0 same colour or same named print, 0.5 neighbouring colours or
+    nothing to compare, None when they plainly clash."""
     motifs_a, motifs_b = motifs(a), motifs(b)
-    if motifs_a and motifs_b and motifs_compatible(motifs_a, motifs_b):
-        return 1.0
+    if motifs_a and motifs_b:
+        return 1.0 if motifs_compatible(motifs_a, motifs_b) else None
     family_a, family_b = primary_color(a), primary_color(b)
     if family_a and family_b:
         if family_a == family_b:
             return 1.0
-        return 0.75 if colors_compatible(family_a, family_b) else 0.0
-    return _field_score(a, b)
+        return 0.5 if frozenset({family_a, family_b}) in _NEIGHBOUR_COLORS else None
+    return 0.5
 
 
 def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
@@ -198,14 +241,15 @@ def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
 
 
 def is_vetoed(attr_a: Attributes, attr_b: Attributes) -> bool:
-    """Two detections can never be the same physical garment if their
-    categories are incompatible (a jacket is never a trouser -- but a
-    "romper" and a "bodysuit" may well be one garment), their primary colors
-    confidently disagree (a white bodysuit is never a pink one), or both
-    name a print and the prints share nothing (giraffes are never flowers)."""
-    if not categories_compatible(attr_a.category, attr_b.category):
+    """Two detections can never be the same physical garment if one is an
+    accessory the other isn't (a hat is never trousers), or their colours
+    or prints confidently clash (a white bodysuit is never a pink one,
+    giraffes are never flowers). A category disagreement between two
+    garments is weighed in the score instead -- it is too often noise."""
+    if kinds_incompatible(attr_a.category, attr_b.category):
         return True
-    return appearance_differs(attr_a, attr_b)
+    confident = attr_a.confidence.color >= 0.5 and attr_b.confidence.color >= 0.5
+    return confident and color_score(attr_a.color, attr_b.color) is None
 
 
 def appearance_differs(attr_a: Attributes, attr_b: Attributes) -> bool:
@@ -235,24 +279,107 @@ def pairwise_score(
     emb_b: np.ndarray,
     ocr_a: list[str],
     ocr_b: list[str],
+    reshoot: bool = False,
 ) -> float:
-    # With no attributes on one side the category/color veto cannot fire and
-    # the score is CLIP similarity plus neutral 0.5s -- which merged a pair of
-    # leggings with a bodysuit at 0.877 embedding similarity. Two separate
-    # listings the seller can merge beat one wrong one.
+    """How likely two detections in different photos are one garment.
+
+    `reshoot` says the two photos are the same pile photographed again
+    (see `_reshoot_pairs`). Only then is the vision model's category mere
+    evidence and a neighbouring colour a partial match: in a re-shoot most
+    garments demonstrably reappear, so the one-per-photo assignment has the
+    right partner to choose. Between unrelated photos the strict rules
+    apply -- a category or colour disagreement vetoes -- because there the
+    look-alike is usually a *different* garment (measured: 12 different
+    product photos, 5 wrong merges under the lenient rules, 0 under these).
+    """
+    # With no attributes on one side the only signal left is CLIP, which put
+    # a pair of leggings and a bodysuit at 0.877. Two separate listings the
+    # seller can merge beat one wrong one.
     if attr_a.unavailable or attr_b.unavailable:
         return 0.0
+    if not reshoot:
+        return _strict_score(attr_a, attr_b, emb_a, emb_b, ocr_a, ocr_b)
     if is_vetoed(attr_a, attr_b):
         return 0.0
-
-    embedding_sim = cosine_similarity(emb_a, emb_b)
+    color = color_score(attr_a.color, attr_b.color)
     return (
-        WEIGHTS["embedding"] * embedding_sim
-        + WEIGHTS["color"] * _color_score(attr_a.color, attr_b.color)
+        WEIGHTS["embedding"] * cosine_similarity(emb_a, emb_b)
+        + WEIGHTS["category"] * category_score(attr_a.category, attr_b.category)
+        + WEIGHTS["color"] * (0.5 if color is None else color)
         + WEIGHTS["brand"] * _field_score(attr_a.brand, attr_b.brand)
         + WEIGHTS["size"] * _field_score(attr_a.size, attr_b.size)
         + WEIGHTS["ocr"] * _ocr_score(ocr_a, ocr_b)
     )
+
+
+_STRICT_WEIGHTS = {"embedding": 0.55, "color": 0.15, "brand": 0.15, "size": 0.10, "ocr": 0.05}
+
+
+def _strict_color_score(a: str | None, b: str | None) -> float:
+    motifs_a, motifs_b = motifs(a), motifs(b)
+    if motifs_a and motifs_b and motifs_compatible(motifs_a, motifs_b):
+        return 1.0
+    family_a, family_b = primary_color(a), primary_color(b)
+    if family_a and family_b:
+        if family_a == family_b:
+            return 1.0
+        return 0.75 if colors_compatible(family_a, family_b) else 0.0
+    # Neither names a colour family: two different wordings count against.
+    return _field_score(a, b)
+
+
+def _strict_score(attr_a: Attributes, attr_b: Attributes, emb_a, emb_b, ocr_a, ocr_b) -> float:
+    if kinds_incompatible(attr_a.category, attr_b.category) or not categories_compatible(attr_a.category, attr_b.category):
+        return 0.0
+    if appearance_differs(attr_a, attr_b):
+        return 0.0
+    return (
+        _STRICT_WEIGHTS["embedding"] * cosine_similarity(emb_a, emb_b)
+        + _STRICT_WEIGHTS["color"] * _strict_color_score(attr_a.color, attr_b.color)
+        + _STRICT_WEIGHTS["brand"] * _field_score(attr_a.brand, attr_b.brand)
+        + _STRICT_WEIGHTS["size"] * _field_score(attr_a.size, attr_b.size)
+        + _STRICT_WEIGHTS["ocr"] * _ocr_score(ocr_a, ocr_b)
+    )
+
+
+# Two photos are the same pile photographed again when, pairing their
+# garments one-to-one by appearance, several of them have an unmistakable
+# partner. Measured: every photo pair of two client piles had 5-15 garments
+# with a partner at >= 0.85 (71-100% of the smaller photo), while unrelated
+# product photos -- 1-3 garments each -- never had more than 2.
+_RESHOOT_STRONG_SIMILARITY = 0.85
+_RESHOOT_MIN_PARTNERS = 3
+_RESHOOT_MIN_FRACTION = 0.5
+
+
+def _reshoot_pairs(ids_by_photo: dict[str, list[str]], embeddings: dict[str, np.ndarray]) -> set[frozenset[str]]:
+    pairs: set[frozenset[str]] = set()
+    for photo_a, photo_b in combinations(ids_by_photo, 2):
+        rows, cols = sorted((ids_by_photo[photo_a], ids_by_photo[photo_b]), key=len)
+        if len(rows) < _RESHOOT_MIN_PARTNERS:
+            continue
+        similarity = [[cosine_similarity(embeddings[r], embeddings[c]) for c in cols] for r in rows]
+        assignment = min_cost_assignment([[-value for value in row] for row in similarity])
+        partners = sum(1 for i, j in enumerate(assignment) if similarity[i][j] >= _RESHOOT_STRONG_SIMILARITY)
+        if partners >= _RESHOOT_MIN_PARTNERS and partners / len(rows) >= _RESHOOT_MIN_FRACTION:
+            pairs.add(frozenset((photo_a, photo_b)))
+    return pairs
+
+
+def looks_like_the_same_garment(attr_a: Attributes, attr_b: Attributes) -> bool:
+    """Strict: the same kind of garment and the same colour family or the
+    same named print -- for collapsing two boxes on one garment in one photo,
+    where a neighbouring colour (a white and a grey pair of trousers lying
+    on top of each other) must *not* count."""
+    if attr_a.unavailable or attr_b.unavailable:
+        return False
+    if category_score(attr_a.category, attr_b.category) == 0.0 or kinds_incompatible(attr_a.category, attr_b.category):
+        return False
+    motifs_a, motifs_b = motifs(attr_a.color), motifs(attr_b.color)
+    if motifs_a and motifs_b:
+        return motifs_compatible(motifs_a, motifs_b)
+    family_a, family_b = primary_color(attr_a.color), primary_color(attr_b.color)
+    return bool(family_a and family_a == family_b)
 
 
 def _pick_best_field(members: list[Attributes], field: str) -> tuple[str | None, float]:
@@ -263,6 +390,22 @@ def _pick_best_field(members: list[Attributes], field: str) -> tuple[str | None,
         if value is not None and confidence >= best_confidence:
             best_value, best_confidence = value, confidence
     return best_value, best_confidence
+
+
+def _vote_category(members: list[Attributes]) -> tuple[str | None, float]:
+    """The category most photos agree on (confidence-weighted), so one
+    photo's "sweatshirt" doesn't name a pair of trousers seen as trousers in
+    three others; the vague "top"/unknown only wins when nothing else was
+    read."""
+    votes: dict[str, float] = {}
+    for attr in members:
+        if attr.category and attr.category not in _WILDCARD_CATEGORIES:
+            weight = attr.confidence.category * (0.5 if attr.category in _VAGUE_CATEGORIES else 1.0)
+            votes[attr.category] = votes.get(attr.category, 0.0) + weight
+    if not votes:
+        return _pick_best_field(members, "category")
+    category = max(votes, key=votes.__getitem__)
+    return category, max(a.confidence.category for a in members if a.category == category)
 
 
 def _merge_defects(members: list[Attributes]) -> str | None:
@@ -290,7 +433,7 @@ def _assemble_garment(
     members = [attributes[det_id] for det_id in member_ids]
     images = sorted({detections_by_id[det_id].image_id for det_id in member_ids})
 
-    category, category_conf = _pick_best_field(members, "category")
+    category, category_conf = _vote_category(members)
     brand, brand_conf = _pick_best_field(members, "brand")
     size, size_conf = _pick_best_field(members, "size")
     color, color_conf = _pick_best_field(members, "color")
@@ -372,6 +515,10 @@ def build_garments(
     detections_by_id = {d.id: d for d in detections}
     ids = [d.id for d in detections]
     pair_scores: dict[frozenset[str], float] = {}
+    ids_by_photo: dict[str, list[str]] = {}
+    for det_id in ids:
+        ids_by_photo.setdefault(detections_by_id[det_id].image_id, []).append(det_id)
+    reshoots = _reshoot_pairs(ids_by_photo, embeddings)
 
     for id_a, id_b in combinations(ids, 2):
         # A single photo shows each physical item once. Two detections from
@@ -388,6 +535,7 @@ def build_garments(
             embeddings[id_b],
             ocr_texts.get(id_a, []),
             ocr_texts.get(id_b, []),
+            reshoot=frozenset((detections_by_id[id_a].image_id, detections_by_id[id_b].image_id)) in reshoots,
         )
 
     image_of = {det_id: detections_by_id[det_id].image_id for det_id in ids}

@@ -361,6 +361,46 @@ def _attach_images(garment: Garment, prepared_by_id: dict[str, _Prepared]) -> Ga
     return garment
 
 
+# Two boxes on one garment that the mask-based check could not tie together
+# (one is a small partial box, e.g. around a single cuff, whose mask barely
+# touches the full one). Once the vision model has read both, they are
+# recognisable: measured on a client pile, both leftover duplicates of a pair
+# of floral trousers sat 84% / 72% inside the real detection's box and read
+# identically, while the closest genuinely different pair -- white trousers
+# lying on grey ones, 97% overlapping -- read "vit" vs "ljusgrå".
+_TWIN_BOX_CONTAINMENT = 0.6
+
+
+def _box_containment(a: Detection, b: Detection) -> float:
+    """Share of the smaller box's area that lies inside the other box."""
+    ax1, ay1, ax2, ay2 = a.bbox.as_xyxy()
+    bx1, by1, bx2, by2 = b.bbox.as_xyxy()
+    inter = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * max(0.0, min(ay2, by2) - max(ay1, by1))
+    smaller = min((ax2 - ax1) * (ay2 - ay1), (bx2 - bx1) * (by2 - by1))
+    return inter / smaller if smaller > 0 else 0.0
+
+
+def _same_garment_twice(
+    detections: list[Detection], attributes: dict[str, Attributes], masks_by_id: dict[str, np.ndarray]
+) -> set[str]:
+    """Detections in one photo that are the same garment read twice; the
+    smaller (partial) one of each pair is returned for dropping."""
+    twins: set[str] = set()
+    by_image: dict[str, list[Detection]] = {}
+    for det in detections:
+        by_image.setdefault(det.image_id, []).append(det)
+    for group in by_image.values():
+        for a, b in combinations(group, 2):
+            if a.id in twins or b.id in twins:
+                continue
+            if _box_containment(a, b) < _TWIN_BOX_CONTAINMENT:
+                continue
+            if not matching.looks_like_the_same_garment(attributes[a.id], attributes[b.id]):
+                continue
+            twins.add(min((a, b), key=lambda d: int(masks_by_id[d.id].sum())).id)
+    return twins
+
+
 def _raise_if_nothing_was_read(attributes: dict[str, Attributes], quota_failures: int) -> None:
     """Nothing was read because the account is out of credits: a batch of
     "unknown", unmatched garments would only have to be deleted again, so
@@ -565,6 +605,8 @@ def run_pipeline(
         )
     alive = {d.id for d in detections if d.id not in not_garment_ids and d.id in prepared_by_id}
     parts = _parts_of_bigger_garments(nested_in, attributes, alive)
+    twins = _same_garment_twice([d for d in detections if d.id in alive and d.id not in parts], attributes, masks_by_id)
+    parts |= twins
     duplicates_dropped += len(parts)
     if duplicates_dropped:
         notes.append(f"Slog ihop {duplicates_dropped} dubblettdetektion(er) av samma plagg i en bild.")
