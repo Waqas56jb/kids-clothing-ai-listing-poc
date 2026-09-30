@@ -1,0 +1,2471 @@
+{
+ "detections": [
+  {
+   "id": "00_3323_det0",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det5",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det6",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det7",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det8",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det9",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det10",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det11",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det12",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det13",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det14",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det15",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det16",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det17",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det18",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det20",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det22",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det23",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det24",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "00_3323_det25",
+   "image_id": "00_3323"
+  },
+  {
+   "id": "01_3322_det2",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det4",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det5",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det6",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det10",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det11",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det12",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det13",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det14",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det15",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "01_3322_det19",
+   "image_id": "01_3322"
+  },
+  {
+   "id": "02_3321_det0",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det1",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det2",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det3",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det4",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det5",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det6",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det8",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det9",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det11",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det12",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det13",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det14",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det15",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det18",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det23",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "02_3321_det24",
+   "image_id": "02_3321"
+  },
+  {
+   "id": "03_3320_det0",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det1",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det3",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det4",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det5",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det6",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det7",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det8",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det9",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det11",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det12",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det13",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det14",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det15",
+   "image_id": "03_3320"
+  },
+  {
+   "id": "03_3320_det17",
+   "image_id": "03_3320"
+  }
+ ],
+ "attributes": {
+  "00_3323_det0": {
+   "detection_id": "00_3323_det0",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "blommig med rosa muddar",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.2
+   },
+   "unavailable": false
+  },
+  "00_3323_det5": {
+   "detection_id": "00_3323_det5",
+   "category": "sleeper",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det6": {
+   "detection_id": "00_3323_det6",
+   "category": "bodysuit",
+   "brand": "Molo",
+   "size": null,
+   "color": "svart och vit med mönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.9,
+    "size": 0.2,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det7": {
+   "detection_id": "00_3323_det7",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "blå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det8": {
+   "detection_id": "00_3323_det8",
+   "category": "romper",
+   "brand": null,
+   "size": null,
+   "color": "rosa",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det9": {
+   "detection_id": "00_3323_det9",
+   "category": "leggings",
+   "brand": null,
+   "size": null,
+   "color": "beige med fruktmotiv",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det10": {
+   "detection_id": "00_3323_det10",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "mörkblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det11": {
+   "detection_id": "00_3323_det11",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det12": {
+   "detection_id": "00_3323_det12",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "blå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det13": {
+   "detection_id": "00_3323_det13",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "brun",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det14": {
+   "detection_id": "00_3323_det14",
+   "category": "hoodie",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det15": {
+   "detection_id": "00_3323_det15",
+   "category": "sweatshirt",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det16": {
+   "detection_id": "00_3323_det16",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det17": {
+   "detection_id": "00_3323_det17",
+   "category": "dress",
+   "brand": null,
+   "size": null,
+   "color": "beige med blommigt mönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.3
+   },
+   "unavailable": false
+  },
+  "00_3323_det18": {
+   "detection_id": "00_3323_det18",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det20": {
+   "detection_id": "00_3323_det20",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "brun",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det22": {
+   "detection_id": "00_3323_det22",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "00_3323_det23": {
+   "detection_id": "00_3323_det23",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "beige",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det24": {
+   "detection_id": "00_3323_det24",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "00_3323_det25": {
+   "detection_id": "00_3323_det25",
+   "category": "top",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.8,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "01_3322_det2": {
+   "detection_id": "01_3322_det2",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "blommig med rosa muddar",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.2
+   },
+   "unavailable": false
+  },
+  "01_3322_det4": {
+   "detection_id": "01_3322_det4",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå med vita ränder",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det5": {
+   "detection_id": "01_3322_det5",
+   "category": "bodysuit",
+   "brand": "H&M",
+   "size": null,
+   "color": "ljusgrön",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.9,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det6": {
+   "detection_id": "01_3322_det6",
+   "category": "sleeper",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det10": {
+   "detection_id": "01_3322_det10",
+   "category": "hoodie",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det11": {
+   "detection_id": "01_3322_det11",
+   "category": "leggings",
+   "brand": null,
+   "size": null,
+   "color": "gul med fruktmotiv",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det12": {
+   "detection_id": "01_3322_det12",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "mörkblå med vita ränder",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "01_3322_det13": {
+   "detection_id": "01_3322_det13",
+   "category": "dress",
+   "brand": null,
+   "size": null,
+   "color": "beige med blommigt mönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.2
+   },
+   "unavailable": false
+  },
+  "01_3322_det14": {
+   "detection_id": "01_3322_det14",
+   "category": "bodysuit",
+   "brand": "Molo",
+   "size": null,
+   "color": "svart med grävlingmönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.9,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det15": {
+   "detection_id": "01_3322_det15",
+   "category": "top",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "01_3322_det19": {
+   "detection_id": "01_3322_det19",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "beige",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det0": {
+   "detection_id": "02_3321_det0",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "mörkblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det1": {
+   "detection_id": "02_3321_det1",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå med vita ränder",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det2": {
+   "detection_id": "02_3321_det2",
+   "category": "romper",
+   "brand": null,
+   "size": null,
+   "color": "rosa",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det3": {
+   "detection_id": "02_3321_det3",
+   "category": "sleeper",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det4": {
+   "detection_id": "02_3321_det4",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "02_3321_det5": {
+   "detection_id": "02_3321_det5",
+   "category": "bodysuit",
+   "brand": "Molo",
+   "size": null,
+   "color": "svart och vit med grävlingmönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.9,
+    "size": 0.2,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det6": {
+   "detection_id": "02_3321_det6",
+   "category": "sweatshirt",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det8": {
+   "detection_id": "02_3321_det8",
+   "category": "top",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det9": {
+   "detection_id": "02_3321_det9",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det11": {
+   "detection_id": "02_3321_det11",
+   "category": "romper",
+   "brand": null,
+   "size": null,
+   "color": "blommig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det12": {
+   "detection_id": "02_3321_det12",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det13": {
+   "detection_id": "02_3321_det13",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.3
+   },
+   "unavailable": false
+  },
+  "02_3321_det14": {
+   "detection_id": "02_3321_det14",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "blå med vita ränder",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.8,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.9,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "02_3321_det15": {
+   "detection_id": "02_3321_det15",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "02_3321_det18": {
+   "detection_id": "02_3321_det18",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "brun",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "02_3321_det23": {
+   "detection_id": "02_3321_det23",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "brun",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "02_3321_det24": {
+   "detection_id": "02_3321_det24",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det0": {
+   "detection_id": "03_3320_det0",
+   "category": "top",
+   "brand": "Molo",
+   "size": null,
+   "color": "svart med djurmönster",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.8,
+    "brand": 0.9,
+    "size": 0.2,
+    "color": 0.8,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det1": {
+   "detection_id": "03_3320_det1",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "mörkblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det3": {
+   "detection_id": "03_3320_det3",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "blå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det4": {
+   "detection_id": "03_3320_det4",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det5": {
+   "detection_id": "03_3320_det5",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "gul",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det6": {
+   "detection_id": "03_3320_det6",
+   "category": "sweatshirt",
+   "brand": null,
+   "size": null,
+   "color": "ljusgrå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det7": {
+   "detection_id": "03_3320_det7",
+   "category": "cardigan",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det8": {
+   "detection_id": "03_3320_det8",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "blå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.8,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det9": {
+   "detection_id": "03_3320_det9",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "brun",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det11": {
+   "detection_id": "03_3320_det11",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det12": {
+   "detection_id": "03_3320_det12",
+   "category": "top",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå och vit randig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det13": {
+   "detection_id": "03_3320_det13",
+   "category": "trousers",
+   "brand": null,
+   "size": null,
+   "color": "vit",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det14": {
+   "detection_id": "03_3320_det14",
+   "category": "romper",
+   "brand": null,
+   "size": null,
+   "color": "rosa",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.5
+   },
+   "unavailable": false
+  },
+  "03_3320_det15": {
+   "detection_id": "03_3320_det15",
+   "category": "romper",
+   "brand": null,
+   "size": null,
+   "color": "blommig",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  },
+  "03_3320_det17": {
+   "detection_id": "03_3320_det17",
+   "category": "bodysuit",
+   "brand": null,
+   "size": null,
+   "color": "ljusblå",
+   "condition": "good",
+   "gender": null,
+   "defects": null,
+   "confidence": {
+    "category": 0.9,
+    "brand": 0.1,
+    "size": 0.1,
+    "color": 0.9,
+    "condition": 0.8,
+    "gender": 0.6
+   },
+   "unavailable": false
+  }
+ },
+ "ocr": {
+  "00_3323_det0": [],
+  "00_3323_det5": [],
+  "00_3323_det6": [],
+  "00_3323_det7": [],
+  "00_3323_det8": [],
+  "00_3323_det9": [],
+  "00_3323_det10": [],
+  "00_3323_det11": [],
+  "00_3323_det12": [],
+  "00_3323_det13": [],
+  "00_3323_det14": [],
+  "00_3323_det15": [],
+  "00_3323_det16": [],
+  "00_3323_det17": [],
+  "00_3323_det18": [],
+  "00_3323_det20": [],
+  "00_3323_det22": [],
+  "00_3323_det23": [],
+  "00_3323_det24": [],
+  "00_3323_det25": [],
+  "01_3322_det2": [],
+  "01_3322_det4": [],
+  "01_3322_det5": [],
+  "01_3322_det6": [],
+  "01_3322_det10": [],
+  "01_3322_det11": [],
+  "01_3322_det12": [],
+  "01_3322_det13": [],
+  "01_3322_det14": [],
+  "01_3322_det15": [],
+  "01_3322_det19": [],
+  "02_3321_det0": [],
+  "02_3321_det1": [],
+  "02_3321_det2": [],
+  "02_3321_det3": [],
+  "02_3321_det4": [],
+  "02_3321_det5": [],
+  "02_3321_det6": [],
+  "02_3321_det8": [],
+  "02_3321_det9": [],
+  "02_3321_det11": [],
+  "02_3321_det12": [],
+  "02_3321_det13": [],
+  "02_3321_det14": [],
+  "02_3321_det15": [],
+  "02_3321_det18": [],
+  "02_3321_det23": [],
+  "02_3321_det24": [],
+  "03_3320_det0": [],
+  "03_3320_det1": [],
+  "03_3320_det3": [],
+  "03_3320_det4": [],
+  "03_3320_det5": [],
+  "03_3320_det6": [],
+  "03_3320_det7": [],
+  "03_3320_det8": [],
+  "03_3320_det9": [],
+  "03_3320_det11": [],
+  "03_3320_det12": [],
+  "03_3320_det13": [],
+  "03_3320_det14": [],
+  "03_3320_det15": [],
+  "03_3320_det17": []
+ },
+ "boxes": {
+  "00_3323_det0": [
+   51,
+   1035,
+   341,
+   1418,
+   0.367,
+   57289
+  ],
+  "00_3323_det5": [
+   331,
+   1000,
+   805,
+   1300,
+   0.309,
+   80050
+  ],
+  "00_3323_det6": [
+   404,
+   783,
+   674,
+   1009,
+   0.294,
+   39319
+  ],
+  "00_3323_det7": [
+   829,
+   851,
+   1030,
+   1133,
+   0.292,
+   30479
+  ],
+  "00_3323_det8": [
+   79,
+   274,
+   464,
+   588,
+   0.291,
+   65618
+  ],
+  "00_3323_det9": [
+   355,
+   1276,
+   665,
+   1530,
+   0.288,
+   49766
+  ],
+  "00_3323_det10": [
+   368,
+   415,
+   599,
+   731,
+   0.281,
+   38797
+  ],
+  "00_3323_det11": [
+   115,
+   559,
+   416,
+   819,
+   0.279,
+   42477
+  ],
+  "00_3323_det12": [
+   446,
+   537,
+   712,
+   860,
+   0.269,
+   34132
+  ],
+  "00_3323_det13": [
+   686,
+   1109,
+   961,
+   1357,
+   0.267,
+   39491
+  ],
+  "00_3323_det14": [
+   109,
+   750,
+   469,
+   1112,
+   0.257,
+   68768
+  ],
+  "00_3323_det15": [
+   351,
+   135,
+   637,
+   336,
+   0.246,
+   33397
+  ],
+  "00_3323_det16": [
+   446,
+   285,
+   728,
+   487,
+   0.246,
+   32822
+  ],
+  "00_3323_det17": [
+   887,
+   582,
+   1115,
+   848,
+   0.245,
+   36028
+  ],
+  "00_3323_det18": [
+   635,
+   52,
+   824,
+   394,
+   0.239,
+   30942
+  ],
+  "00_3323_det20": [
+   816,
+   179,
+   1034,
+   413,
+   0.23,
+   29101
+  ],
+  "00_3323_det22": [
+   621,
+   752,
+   868,
+   1083,
+   0.222,
+   31902
+  ],
+  "00_3323_det23": [
+   685,
+   386,
+   941,
+   586,
+   0.22,
+   28118
+  ],
+  "00_3323_det24": [
+   418,
+   1,
+   629,
+   177,
+   0.209,
+   24642
+  ],
+  "00_3323_det25": [
+   658,
+   568,
+   899,
+   841,
+   0.204,
+   36025
+  ],
+  "01_3322_det2": [
+   338,
+   1218,
+   781,
+   1523,
+   0.402,
+   92238
+  ],
+  "01_3322_det4": [
+   39,
+   491,
+   461,
+   825,
+   0.282,
+   56857
+  ],
+  "01_3322_det5": [
+   354,
+   455,
+   803,
+   751,
+   0.282,
+   47930
+  ],
+  "01_3322_det6": [
+   530,
+   596,
+   886,
+   1233,
+   0.277,
+   119066
+  ],
+  "01_3322_det10": [
+   23,
+   830,
+   540,
+   1311,
+   0.259,
+   123539
+  ],
+  "01_3322_det11": [
+   747,
+   886,
+   1065,
+   1339,
+   0.258,
+   75110
+  ],
+  "01_3322_det12": [
+   593,
+   255,
+   922,
+   527,
+   0.257,
+   42173
+  ],
+  "01_3322_det13": [
+   324,
+   89,
+   654,
+   350,
+   0.257,
+   52936
+  ],
+  "01_3322_det14": [
+   257,
+   629,
+   545,
+   975,
+   0.255,
+   64431
+  ],
+  "01_3322_det15": [
+   164,
+   263,
+   567,
+   523,
+   0.243,
+   58080
+  ],
+  "01_3322_det19": [
+   837,
+   518,
+   1104,
+   847,
+   0.232,
+   52574
+  ],
+  "02_3321_det0": [
+   530,
+   853,
+   810,
+   1234,
+   0.402,
+   64005
+  ],
+  "02_3321_det1": [
+   492,
+   589,
+   853,
+   972,
+   0.359,
+   57554
+  ],
+  "02_3321_det2": [
+   495,
+   1201,
+   1009,
+   1521,
+   0.358,
+   110285
+  ],
+  "02_3321_det3": [
+   724,
+   153,
+   1146,
+   530,
+   0.288,
+   114634
+  ],
+  "02_3321_det4": [
+   777,
+   967,
+   1145,
+   1354,
+   0.286,
+   75246
+  ],
+  "02_3321_det5": [
+   699,
+   525,
+   1071,
+   822,
+   0.286,
+   73173
+  ],
+  "02_3321_det6": [
+   245,
+   1168,
+   525,
+   1515,
+   0.282,
+   49012
+  ],
+  "02_3321_det8": [
+   307,
+   442,
+   571,
+   852,
+   0.265,
+   56201
+  ],
+  "02_3321_det9": [
+   54,
+   949,
+   265,
+   1331,
+   0.259,
+   41960
+  ],
+  "02_3321_det11": [
+   155,
+   330,
+   427,
+   661,
+   0.257,
+   53562
+  ],
+  "02_3321_det12": [
+   250,
+   934,
+   581,
+   1235,
+   0.253,
+   48528
+  ],
+  "02_3321_det13": [
+   121,
+   709,
+   414,
+   1009,
+   0.251,
+   36409
+  ],
+  "02_3321_det14": [
+   345,
+   62,
+   654,
+   427,
+   0.245,
+   50994
+  ],
+  "02_3321_det15": [
+   135,
+   1314,
+   336,
+   1529,
+   0.239,
+   32226
+  ],
+  "02_3321_det18": [
+   679,
+   2,
+   1078,
+   178,
+   0.221,
+   55754
+  ],
+  "02_3321_det23": [
+   3,
+   796,
+   162,
+   1091,
+   0.206,
+   33082
+  ],
+  "02_3321_det24": [
+   533,
+   212,
+   857,
+   683,
+   0.201,
+   56308
+  ],
+  "03_3320_det0": [
+   1038,
+   502,
+   1147,
+   773,
+   0.366,
+   20751
+  ],
+  "03_3320_det1": [
+   738,
+   750,
+   1055,
+   1094,
+   0.354,
+   67785
+  ],
+  "03_3320_det3": [
+   729,
+   516,
+   1129,
+   849,
+   0.329,
+   56073
+  ],
+  "03_3320_det4": [
+   62,
+   1079,
+   400,
+   1464,
+   0.272,
+   63788
+  ],
+  "03_3320_det5": [
+   982,
+   900,
+   1147,
+   1205,
+   0.27,
+   32041
+  ],
+  "03_3320_det6": [
+   313,
+   947,
+   642,
+   1351,
+   0.266,
+   64851
+  ],
+  "03_3320_det7": [
+   80,
+   712,
+   432,
+   1072,
+   0.266,
+   58706
+  ],
+  "03_3320_det8": [
+   770,
+   85,
+   1102,
+   351,
+   0.262,
+   42785
+  ],
+  "03_3320_det9": [
+   66,
+   498,
+   368,
+   792,
+   0.256,
+   51278
+  ],
+  "03_3320_det11": [
+   398,
+   732,
+   751,
+   1077,
+   0.254,
+   58261
+  ],
+  "03_3320_det12": [
+   595,
+   333,
+   912,
+   707,
+   0.246,
+   56962
+  ],
+  "03_3320_det13": [
+   345,
+   477,
+   679,
+   790,
+   0.244,
+   43095
+  ],
+  "03_3320_det14": [
+   616,
+   1057,
+   1143,
+   1450,
+   0.234,
+   123383
+  ],
+  "03_3320_det15": [
+   481,
+   156,
+   825,
+   468,
+   0.228,
+   54496
+  ],
+  "03_3320_det17": [
+   890,
+   332,
+   1147,
+   576,
+   0.22,
+   35192
+  ]
+ },
+ "truth": {
+  "00_3323_det0": "FLOR",
+  "01_3322_det2": "FLOR",
+  "00_3323_det5": "Y",
+  "01_3322_det6": "Y",
+  "02_3321_det3": "Y",
+  "00_3323_det6": "BADGER",
+  "01_3322_det14": "BADGER",
+  "02_3321_det5": "BADGER",
+  "03_3320_det0": "BADGER",
+  "00_3323_det7": "NS",
+  "01_3322_det12": "NS",
+  "02_3321_det14": "NS",
+  "03_3320_det8": "NS",
+  "00_3323_det8": "PINK",
+  "02_3321_det2": "PINK",
+  "03_3320_det14": "PINK",
+  "00_3323_det9": "FL",
+  "01_3322_det11": "FL",
+  "00_3323_det10": "NAVYC",
+  "02_3321_det0": "NAVYC",
+  "03_3320_det1": "NAVYC",
+  "00_3323_det11": "YP",
+  "02_3321_det4": "YP",
+  "03_3320_det5": "YP",
+  "00_3323_det12": "LS",
+  "01_3322_det4": "LS",
+  "02_3321_det1": "LS",
+  "03_3320_det3": "LS",
+  "00_3323_det13": "KB",
+  "02_3321_det18": "KB",
+  "01_3322_det19": "KB",
+  "00_3323_det20": "RB",
+  "02_3321_det23": "RB",
+  "03_3320_det9": "RB",
+  "00_3323_det17": "DR",
+  "01_3322_det13": "DR",
+  "03_3320_det15": "DR",
+  "02_3321_det11": "DR",
+  "00_3323_det14": "H",
+  "01_3322_det10": "H",
+  "00_3323_det15": "W",
+  "02_3321_det6": "W",
+  "03_3320_det6": "W",
+  "00_3323_det22": "SG",
+  "01_3322_det5": "SG",
+  "02_3321_det24": "SG",
+  "03_3320_det17": "SG",
+  "00_3323_det16": "LB",
+  "02_3321_det12": "LB",
+  "03_3320_det11": "LB",
+  "00_3323_det18": "WC",
+  "02_3321_det9": "WC",
+  "03_3320_det7": "WC",
+  "00_3323_det24": "LC",
+  "02_3321_det15": "LC",
+  "03_3320_det4": "LC",
+  "00_3323_det23": "CP",
+  "02_3321_det13": "CP",
+  "03_3320_det13": "CP",
+  "00_3323_det25": "ST",
+  "01_3322_det15": "ST",
+  "02_3321_det8": "ST",
+  "03_3320_det12": "ST"
+ },
+ "measured_colors": {
+  "00_3323_det0": [
+   40.78,
+   5.0,
+   9.0,
+   13.33
+  ],
+  "00_3323_det5": [
+   59.22,
+   5.0,
+   29.0,
+   5.88
+  ],
+  "00_3323_det6": [
+   10.59,
+   0.0,
+   -2.0,
+   25.88
+  ],
+  "00_3323_det7": [
+   13.73,
+   4.0,
+   -11.0,
+   23.92
+  ],
+  "00_3323_det8": [
+   41.96,
+   16.0,
+   9.0,
+   10.2
+  ],
+  "00_3323_det9": [
+   58.82,
+   2.0,
+   16.0,
+   6.27
+  ],
+  "00_3323_det10": [
+   5.88,
+   2.0,
+   -7.0,
+   1.18
+  ],
+  "00_3323_det11": [
+   61.96,
+   2.0,
+   30.0,
+   6.27
+  ],
+  "00_3323_det12": [
+   57.25,
+   -5.0,
+   -14.0,
+   14.12
+  ],
+  "00_3323_det13": [
+   36.86,
+   5.0,
+   19.0,
+   4.71
+  ],
+  "00_3323_det14": [
+   65.1,
+   1.0,
+   -2.0,
+   6.67
+  ],
+  "00_3323_det15": [
+   58.43,
+   2.0,
+   -4.0,
+   11.37
+  ],
+  "00_3323_det16": [
+   53.73,
+   0.0,
+   -12.0,
+   7.84
+  ],
+  "00_3323_det17": [
+   59.61,
+   3.0,
+   17.0,
+   10.59
+  ],
+  "00_3323_det18": [
+   67.84,
+   2.0,
+   -5.0,
+   5.49
+  ],
+  "00_3323_det20": [
+   40.78,
+   9.0,
+   11.0,
+   6.67
+  ],
+  "00_3323_det22": [
+   56.86,
+   -1.0,
+   -3.0,
+   4.71
+  ],
+  "00_3323_det23": [
+   65.1,
+   2.0,
+   13.0,
+   4.31
+  ],
+  "00_3323_det24": [
+   61.57,
+   2.0,
+   -6.0,
+   6.67
+  ],
+  "00_3323_det25": [
+   62.35,
+   0.0,
+   2.0,
+   5.49
+  ],
+  "01_3322_det2": [
+   40.0,
+   5.0,
+   7.0,
+   14.12
+  ],
+  "01_3322_det4": [
+   53.33,
+   -4.0,
+   -14.0,
+   13.73
+  ],
+  "01_3322_det5": [
+   58.43,
+   -1.0,
+   -3.0,
+   5.1
+  ],
+  "01_3322_det6": [
+   61.96,
+   5.0,
+   29.0,
+   6.67
+  ],
+  "01_3322_det10": [
+   61.57,
+   1.0,
+   -2.0,
+   6.67
+  ],
+  "01_3322_det11": [
+   61.18,
+   2.0,
+   14.0,
+   6.67
+  ],
+  "01_3322_det12": [
+   14.12,
+   5.0,
+   -13.0,
+   24.31
+  ],
+  "01_3322_det13": [
+   58.43,
+   4.0,
+   19.0,
+   10.59
+  ],
+  "01_3322_det14": [
+   9.8,
+   1.0,
+   -2.0,
+   25.49
+  ],
+  "01_3322_det15": [
+   58.82,
+   1.0,
+   2.0,
+   5.88
+  ],
+  "01_3322_det19": [
+   40.39,
+   5.0,
+   18.0,
+   5.49
+  ],
+  "02_3321_det0": [
+   4.71,
+   2.0,
+   -5.0,
+   1.57
+  ],
+  "02_3321_det1": [
+   57.65,
+   -5.0,
+   -14.0,
+   14.9
+  ],
+  "02_3321_det2": [
+   40.0,
+   16.0,
+   9.0,
+   8.63
+  ],
+  "02_3321_det3": [
+   59.22,
+   6.0,
+   30.0,
+   5.49
+  ],
+  "02_3321_det4": [
+   58.43,
+   3.0,
+   29.0,
+   6.67
+  ],
+  "02_3321_det5": [
+   8.24,
+   0.0,
+   -2.0,
+   27.45
+  ],
+  "02_3321_det6": [
+   59.22,
+   3.0,
+   -4.0,
+   11.37
+  ],
+  "02_3321_det8": [
+   66.27,
+   1.0,
+   4.0,
+   5.88
+  ],
+  "02_3321_det9": [
+   70.2,
+   2.0,
+   -4.0,
+   5.49
+  ],
+  "02_3321_det11": [
+   63.92,
+   4.0,
+   22.0,
+   10.98
+  ],
+  "02_3321_det12": [
+   54.51,
+   0.0,
+   -12.0,
+   7.84
+  ],
+  "02_3321_det13": [
+   69.02,
+   3.0,
+   16.0,
+   3.92
+  ],
+  "02_3321_det14": [
+   11.76,
+   4.0,
+   -11.0,
+   26.67
+  ],
+  "02_3321_det15": [
+   62.35,
+   2.0,
+   -5.0,
+   7.45
+  ],
+  "02_3321_det18": [
+   37.25,
+   6.0,
+   22.0,
+   5.1
+  ],
+  "02_3321_det23": [
+   43.92,
+   11.0,
+   11.0,
+   6.67
+  ],
+  "02_3321_det24": [
+   58.82,
+   -1.0,
+   -1.0,
+   5.1
+  ],
+  "03_3320_det0": [
+   7.06,
+   1.0,
+   -2.0,
+   20.39
+  ],
+  "03_3320_det1": [
+   5.49,
+   2.0,
+   -5.0,
+   0.78
+  ],
+  "03_3320_det3": [
+   50.2,
+   -5.0,
+   -11.0,
+   13.73
+  ],
+  "03_3320_det4": [
+   59.61,
+   2.0,
+   -3.0,
+   8.24
+  ],
+  "03_3320_det5": [
+   52.94,
+   3.0,
+   29.0,
+   7.06
+  ],
+  "03_3320_det6": [
+   58.43,
+   2.0,
+   -5.0,
+   11.76
+  ],
+  "03_3320_det7": [
+   69.8,
+   2.0,
+   -5.0,
+   5.88
+  ],
+  "03_3320_det8": [
+   10.98,
+   3.0,
+   -8.0,
+   22.35
+  ],
+  "03_3320_det9": [
+   42.35,
+   10.0,
+   14.0,
+   6.67
+  ],
+  "03_3320_det11": [
+   53.73,
+   0.0,
+   -11.0,
+   8.24
+  ],
+  "03_3320_det12": [
+   60.39,
+   0.0,
+   5.0,
+   5.49
+  ],
+  "03_3320_det13": [
+   66.67,
+   2.0,
+   18.0,
+   5.1
+  ],
+  "03_3320_det14": [
+   34.51,
+   15.0,
+   8.0,
+   10.2
+  ],
+  "03_3320_det15": [
+   58.04,
+   4.0,
+   23.0,
+   10.59
+  ],
+  "03_3320_det17": [
+   48.63,
+   -1.0,
+   0.0,
+   4.31
+  ]
+ }
+}

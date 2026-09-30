@@ -222,6 +222,19 @@ def test_a_hat_resting_on_a_bodysuit_stays_its_own_garment():
     assert _parts_of_bigger_garments({"hat": "body"}, attributes, {"body", "hat"}) == set()
 
 
+def test_a_hat_with_a_generic_animal_print_on_a_giraffe_bodysuit_stays_its_own_garment():
+    # pile9: the Pooh hat, read "vit med djurmotiv", resting on the giraffe bodysuit.
+    attributes = {"body": _attrs("body", "bodysuit", "vit med giraffmönster"), "hat": _attrs("hat", "hat", "vit med djurmotiv")}
+    assert _parts_of_bigger_garments({"hat": "body"}, attributes, {"body", "hat"}) == set()
+
+
+def test_a_sleeve_in_the_same_striped_fabric_read_as_a_hat_is_part_of_the_garment():
+    # pile20 (job 9863ed6fa8c0): a folded sleeve of the striped bodysuit came
+    # back "hat, blå och vit randig" and was listed as a striped hat.
+    attributes = {"body": _attrs("body", "bodysuit", "ljusblå med vita ränder"), "sleeve": _attrs("sleeve", "hat", "blå och vit randig")}
+    assert _parts_of_bigger_garments({"sleeve": "body"}, attributes, {"body", "sleeve"}) == {"sleeve"}
+
+
 def test_a_big_part_in_the_same_fabric_is_dropped_as_part_of_the_garment():
     # The round-7 sleeve, read on its own as "leggings": same colour, same print.
     attributes = {"romper": _attrs("romper", "bodysuit", "brun med svarta hjärtan"),

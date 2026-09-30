@@ -11,7 +11,7 @@ from typing import Callable
 import numpy as np
 from PIL import Image
 
-from ai_engine import detection, embeddings, listing_copy, matching, ocr, openai_throttle, segmentation, vision_attributes
+from ai_engine import color_signature, detection, embeddings, listing_copy, matching, ocr, openai_throttle, segmentation, vision_attributes
 from ai_engine.config import SETTINGS
 from ai_engine.schemas import (
     AttributeConfidence,
@@ -115,6 +115,7 @@ class _Prepared:
     ocr_texts: list[str]
     embedding: np.ndarray
     quality: image_io.MaskQuality
+    measured_color: np.ndarray | None = None
 
 
 def _mask_overlap_fraction(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
@@ -229,9 +230,16 @@ def _drop_duplicate_detections(
     return _Dedup(kept=kept, dropped=len(dropped), nested_in={c: p for c, p in nested_in.items() if c not in dropped})
 
 
-# Kinds of item that are never a piece of a bigger garment -- a hat can rest
-# on a bodysuit, but it is never its sleeve.
+# Kinds of item that are usually not a piece of a bigger garment -- a hat
+# can rest on a bodysuit (the Pooh hat, "vit med djurmotiv", on the giraffe
+# bodysuit). The exception is a piece cut from the very same printed fabric:
+# a striped bodysuit's folded sleeve came back as "hat, blå och vit randig"
+# inside the "blå och vit randig" bodysuit and was listed as a hat.
 _STANDALONE_CATEGORIES = frozenset({"hat", "beanie", "socks", "shoes", "mittens", "scarf", "accessory"})
+
+
+def _same_named_print(child: Attributes, parent: Attributes) -> bool:
+    return bool(matching.motifs(child.color) & matching.motifs(parent.color))
 
 
 def _parts_of_bigger_garments(nested_in: dict[str, str], attributes: dict[str, Attributes], alive: set[str]) -> set[str]:
@@ -247,7 +255,11 @@ def _parts_of_bigger_garments(nested_in: dict[str, str], attributes: dict[str, A
         child, parent = attributes.get(child_id), attributes.get(parent_id)
         if child is None or parent is None or child.unavailable or parent.unavailable:
             continue
-        if child.category in _STANDALONE_CATEGORIES and not matching.categories_compatible(child.category, parent.category):
+        if (
+            child.category in _STANDALONE_CATEGORIES
+            and not matching.categories_compatible(child.category, parent.category)
+            and not _same_named_print(child, parent)
+        ):
             continue
         if matching.appearance_differs(child, parent):
             continue
@@ -308,8 +320,11 @@ def _prepare_detection(
     else:
         embed_source = image_io.apply_mask(image, image_io.refine_mask_edges(mask, padded), padded)
     embedding = embeddings.embed_garment(embed_source)
+    # The mask isolates this garment's own pixels even where it overlaps a
+    # neighbour; only a rectangular fallback has nothing to measure.
+    measured_color = None if is_fallback else color_signature.garment_color(image, mask, padded)
 
-    return _Prepared(det, images, texts, embedding, quality), original_crop
+    return _Prepared(det, images, texts, embedding, quality, measured_color), original_crop
 
 
 def _single_detection_garment(index: int, prepared: _Prepared, attrs: Attributes) -> Garment:
@@ -625,6 +640,7 @@ def run_pipeline(
         {d.id: attributes[d.id] for d in kept},
         {d.id: prepared_by_id[d.id].embedding for d in kept},
         {d.id: prepared_by_id[d.id].ocr_texts for d in kept},
+        {d.id: prepared_by_id[d.id].measured_color for d in kept},
     )
     garments = [_attach_images(g, prepared_by_id) for g in garments]
     report("finishing", 1, 2)

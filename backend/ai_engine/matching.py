@@ -18,13 +18,27 @@ from ai_engine.schemas import AttributeConfidence, Attributes, Detection, Garmen
 # that split 8 garments and mixed 4 listings (20 listings for 15 garments).
 # Colour and print, by contrast, were read the same in every photo.
 WEIGHTS = {
-    "embedding": 0.55,
+    "embedding": 0.40,
+    "measured_color": 0.15,
     "category": 0.15,
     "color": 0.15,
     "brand": 0.07,
     "size": 0.05,
     "ocr": 0.03,
 }
+
+# The garment's median colour measured from its own mask pixels (see
+# ai_engine.color_signature). Distance in CIELAB with lightness counted half
+# (exposure changes between photos move L most). Measured on three client
+# piles: re-shots of the same garment are typically 2-6 apart (90% under
+# 6.5), while the look-alikes CLIP could not separate -- a khaki vs a
+# rose-brown bodysuit, sage vs light-blue, cream fruit-print leggings vs
+# yellow trousers -- are 9-14 apart. A crop that is mostly a neighbour
+# (mask on the cuffs only) can read 40 off, so this is weighed, never a veto.
+# Used for re-shoots only (see `pairwise_score`), where every garment's
+# other photos were taken in the same light.
+MEASURED_COLOR_SCALE = 16.0
+_LIGHTNESS_WEIGHT = 0.5
 
 # Above this raw embedding similarity, two crops look near-identical enough
 # that "same physical item" and "two identical separate items" become
@@ -183,7 +197,10 @@ def colors_compatible(family_a: str | None, family_b: str | None) -> bool:
 _NEIGHBOUR_COLORS = _BRIDGED_COLORS | {
     frozenset(pair)
     for pair in [("beige", "pink"), ("pink", "red"), ("pink", "purple"), ("grey", "white"), ("grey", "black"),
-                 ("blue", "green"), ("yellow", "orange"), ("yellow", "beige")]
+                 ("blue", "green"), ("yellow", "orange"), ("yellow", "beige"),
+                 # A pale sage bodysuit came back "ljusgrå", "ljusgrön" and
+                 # "ljusblå" in three photos; the measured colour decides.
+                 ("grey", "blue"), ("grey", "green")]
 }
 
 
@@ -229,6 +246,16 @@ def color_score(a: str | None, b: str | None) -> float | None:
             return 1.0
         return 0.5 if frozenset({family_a, family_b}) in _NEIGHBOUR_COLORS else None
     return 0.5
+
+
+def measured_color_score(color_a: np.ndarray | None, color_b: np.ndarray | None) -> float:
+    """1.0 identical measured colour, falling linearly to 0.0 at
+    MEASURED_COLOR_SCALE apart; 0.5 when either side has no measurement."""
+    if color_a is None or color_b is None:
+        return 0.5
+    dl = _LIGHTNESS_WEIGHT * (float(color_a[0]) - float(color_b[0]))
+    distance = (dl * dl + (float(color_a[1]) - float(color_b[1])) ** 2 + (float(color_a[2]) - float(color_b[2])) ** 2) ** 0.5
+    return max(0.0, 1.0 - distance / MEASURED_COLOR_SCALE)
 
 
 def _ocr_score(texts_a: list[str], texts_b: list[str]) -> float:
@@ -280,6 +307,8 @@ def pairwise_score(
     ocr_a: list[str],
     ocr_b: list[str],
     reshoot: bool = False,
+    color_a: np.ndarray | None = None,
+    color_b: np.ndarray | None = None,
 ) -> float:
     """How likely two detections in different photos are one garment.
 
@@ -304,6 +333,7 @@ def pairwise_score(
     color = color_score(attr_a.color, attr_b.color)
     return (
         WEIGHTS["embedding"] * cosine_similarity(emb_a, emb_b)
+        + WEIGHTS["measured_color"] * measured_color_score(color_a, color_b)
         + WEIGHTS["category"] * category_score(attr_a.category, attr_b.category)
         + WEIGHTS["color"] * (0.5 if color is None else color)
         + WEIGHTS["brand"] * _field_score(attr_a.brand, attr_b.brand)
@@ -502,6 +532,7 @@ def build_garments(
     attributes: dict[str, Attributes],
     embeddings: dict[str, np.ndarray],
     ocr_texts: dict[str, list[str]],
+    measured_colors: dict[str, np.ndarray | None] | None = None,
 ) -> list[Garment]:
     """Cluster detections into physical garments and assemble final records.
 
@@ -514,6 +545,7 @@ def build_garments(
     """
     detections_by_id = {d.id: d for d in detections}
     ids = [d.id for d in detections]
+    measured_colors = measured_colors or {}
     pair_scores: dict[frozenset[str], float] = {}
     ids_by_photo: dict[str, list[str]] = {}
     for det_id in ids:
@@ -536,6 +568,8 @@ def build_garments(
             ocr_texts.get(id_a, []),
             ocr_texts.get(id_b, []),
             reshoot=frozenset((detections_by_id[id_a].image_id, detections_by_id[id_b].image_id)) in reshoots,
+            color_a=measured_colors.get(id_a),
+            color_b=measured_colors.get(id_b),
         )
 
     image_of = {det_id: detections_by_id[det_id].image_id for det_id in ids}
